@@ -55,8 +55,19 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
   onOpenSupabaseModal,
   deadlineConfigs,
 }) => {
-  const currentDeadlines = deadlineConfigs || getSavedDeadlineConfigs();
-  const availablePlanTypes = currentDeadlines.map((d) => d.name);
+  const currentDeadlines = deadlineConfigs && deadlineConfigs.length > 0 ? deadlineConfigs : getSavedDeadlineConfigs();
+  const availablePlanTypes = React.useMemo(() => {
+    const seen = new Set<string>();
+    const list: string[] = [];
+    currentDeadlines.forEach((d) => {
+      const name = (d.name || '').trim();
+      if (name && !seen.has(name)) {
+        seen.add(name);
+        list.push(name);
+      }
+    });
+    return list.length > 0 ? list : DEFAULT_PLAN_TYPES;
+  }, [currentDeadlines]);
   const initialType = availablePlanTypes.length > 0 ? availablePlanTypes[0] : DEFAULT_PLAN_TYPES[0];
 
   const [subjectCode, setSubjectCode] = useState('');

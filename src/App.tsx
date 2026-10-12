@@ -17,6 +17,8 @@ import {
   deletePlanRecord,
   getSavedSupabaseConfig,
   subscribeToDatabaseChanges,
+  fetchSystemSetting,
+  saveSystemSetting,
 } from './services/supabaseClient';
 import {
   getSavedDeadlineConfigs,
@@ -25,6 +27,8 @@ import {
   saveStatusConfigs,
   checkSubmissionTimeliness,
   getPlanStatusInfo,
+  DEFAULT_DEADLINE_CONFIGS,
+  DEFAULT_STATUS_CONFIGS,
 } from './utils/deadlineUtils';
 import { Navbar } from './components/Navbar';
 import { DashboardStats } from './components/DashboardStats';
@@ -117,17 +121,35 @@ export default function App() {
   const syncWithDatabase = async (silent: boolean = true) => {
     setIsSyncing(true);
     try {
-      const [teachersRes, plansRes] = await Promise.all([
+      const [teachersRes, plansRes, dlSettingsRes, statusSettingsRes] = await Promise.all([
         fetchTeachers(),
         fetchPlans(),
+        fetchSystemSetting<PlanTypeDeadlineConfig[]>('deadline_configs', getSavedDeadlineConfigs()),
+        fetchSystemSetting<PlanStatusConfig[]>('status_configs', getSavedStatusConfigs()),
       ]);
       setTeachers(teachersRes.data);
       setIsSupabaseConnected(teachersRes.isSupabase || plansRes.isSupabase);
 
-      const currentDl = getSavedDeadlineConfigs();
+      let effectiveDl = getSavedDeadlineConfigs();
+      if (dlSettingsRes.isSupabase && Array.isArray(dlSettingsRes.data) && dlSettingsRes.data.length > 0) {
+        effectiveDl = dlSettingsRes.data;
+        saveDeadlineConfigs(dlSettingsRes.data);
+        setDeadlineConfigs(dlSettingsRes.data);
+      } else if (dlSettingsRes.isSupabase && (!dlSettingsRes.data || (Array.isArray(dlSettingsRes.data) && dlSettingsRes.data.length === 0))) {
+        // Seed default deadline configs (แผนย่อ, แผนสมบูรณ์) to cloud if table is empty
+        saveSystemSetting('deadline_configs', DEFAULT_DEADLINE_CONFIGS);
+      }
+
+      if (statusSettingsRes.isSupabase && Array.isArray(statusSettingsRes.data) && statusSettingsRes.data.length > 0) {
+        saveStatusConfigs(statusSettingsRes.data);
+        setStatusConfigs(statusSettingsRes.data);
+      } else if (statusSettingsRes.isSupabase && (!statusSettingsRes.data || (Array.isArray(statusSettingsRes.data) && statusSettingsRes.data.length === 0))) {
+        saveSystemSetting('status_configs', DEFAULT_STATUS_CONFIGS);
+      }
+
       const evaluated = plansRes.data.map((p) => {
         if (p.is_late === undefined) {
-          const tl = checkSubmissionTimeliness(p.plan_type, p.submitted_at, currentDl);
+          const tl = checkSubmissionTimeliness(p.plan_type, p.submitted_at, effectiveDl);
           return {
             ...p,
             is_late: tl.isLate,
@@ -391,7 +413,7 @@ export default function App() {
   };
 
   // Save deadline configurations (Admin)
-  const handleSaveDeadlineConfigs = (newConfigs: PlanTypeDeadlineConfig[]) => {
+  const handleSaveDeadlineConfigs = async (newConfigs: PlanTypeDeadlineConfig[]) => {
     saveDeadlineConfigs(newConfigs);
     setDeadlineConfigs(newConfigs);
     setPlans((prev) =>
@@ -405,22 +427,52 @@ export default function App() {
         };
       })
     );
-    setToastNotice({
-      type: 'success',
-      message: 'บันทึกการกำหนดช่วงเวลาและวันส่งงานเรียบร้อยแล้ว',
-      details: `ตั้งค่ากำหนดเวลาสำหรับ ${newConfigs.length} ประเภทเอกสาร ระบบจะคำนวณการส่งช้าตามเกณฑ์ใหม่ทันที`,
-    });
+    const dbRes = await saveSystemSetting('deadline_configs', newConfigs);
+    if (dbRes.success && dbRes.isSupabase) {
+      setToastNotice({
+        type: 'success',
+        message: 'บันทึกประเภทเอกสารและวันส่งงานลง Cloud Database สำเร็จ!',
+        details: `บันทึกข้อมูลประเภทเอกสาร ${newConfigs.length} รายการ (รวมแผนการจัดการเรียนรู้ฉบับย่อ, แผนฉบับสมบูรณ์ และประเภทใหม่) ลงใน Supabase เรียบร้อย ข้อมูลจะซิงค์ไปยังอุปกรณ์และคอมพิวเตอร์ของครูทุกคนทันที`,
+      });
+    } else if (!dbRes.success && dbRes.isSupabase) {
+      setToastNotice({
+        type: 'warning',
+        message: 'บันทึกในเครื่องนี้แล้ว (แต่ยังไม่บันทึกลง Cloud Supabase)',
+        details: `ข้อความจากฐานข้อมูล: ${dbRes.error || 'ตาราง system_settings อาจยังไม่ได้ถูกสร้าง'} — แนะนำกดปุ่ม "คัดลอก SQL ตารางระบบ" ในหน้าต่างกำหนดส่งงานไปรันใน Supabase SQL Editor เพื่อเปิดการซิงค์ข้ามเครื่อง`,
+      });
+    } else {
+      setToastNotice({
+        type: 'info',
+        message: 'บันทึกประเภทเอกสารในเบราว์เซอร์เครื่องนี้เรียบร้อย',
+        details: `บันทึกใน Local Storage เครื่องนี้แล้ว (เชื่อมต่อ Supabase หรือใช้ปุ่มคัดลอก JSON ส่งต่อไปยังคอมพิวเตอร์เครื่องอื่น)`,
+      });
+    }
   };
 
   // Save status configurations (Admin)
-  const handleSaveStatusConfigs = (newConfigs: PlanStatusConfig[]) => {
+  const handleSaveStatusConfigs = async (newConfigs: PlanStatusConfig[]) => {
     saveStatusConfigs(newConfigs);
     setStatusConfigs(newConfigs);
-    setToastNotice({
-      type: 'success',
-      message: 'บันทึกการปรับแต่งสถานะเรียบร้อยแล้ว',
-      details: `อัปเดตข้อมูลสถานะ ${newConfigs.length} สถานะ ป้ายสถานะบนแผนการสอนจะแสดงชื่อและสีใหม่ทันที`,
-    });
+    const dbRes = await saveSystemSetting('status_configs', newConfigs);
+    if (dbRes.success && dbRes.isSupabase) {
+      setToastNotice({
+        type: 'success',
+        message: 'บันทึกการปรับแต่งสถานะลง Cloud Database สำเร็จ!',
+        details: `อัปเดตข้อมูลสถานะ ${newConfigs.length} รายการ ไปยังอุปกรณ์ของครูทุกคนเรียบร้อย`,
+      });
+    } else if (!dbRes.success && dbRes.isSupabase) {
+      setToastNotice({
+        type: 'warning',
+        message: 'บันทึกลงเครื่องนี้แล้ว (แต่ยังไม่บันทึกลง Cloud)',
+        details: `เกิดข้อผิดพลาด: ${dbRes.error || 'ตาราง system_settings ยังไม่ถูกสร้าง'} — กรุณาสร้างตาราง system_settings ใน Supabase`,
+      });
+    } else {
+      setToastNotice({
+        type: 'info',
+        message: 'บันทึกการปรับแต่งสถานะในเครื่องนี้เรียบร้อย',
+        details: `อัปเดตข้อมูลสถานะ ${newConfigs.length} สถานะ ใน Local Storage ของเบราว์เซอร์นี้`,
+      });
+    }
   };
 
   // Quick Change Plan Status (Admin)
@@ -809,13 +861,6 @@ export default function App() {
                 <ClipboardList className="w-3.5 h-3.5 text-amber-400" />
                 <span>เปิดตารางติดตามการส่งแผน</span>
               </button>
-              <button
-                onClick={() => setIsFileStorageModalOpen(true)}
-                className="px-3.5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
-              >
-                <HardDrive className="w-3.5 h-3.5" />
-                <span>คลังจัดเก็บไฟล์</span>
-              </button>
             </div>
           </div>
         )}
@@ -826,6 +871,7 @@ export default function App() {
             teachers={teachers}
             plans={plans}
             currentTeacher={currentTeacher}
+            deadlineConfigs={deadlineConfigs}
             onOpenPlan={(plan) => setSelectedPlanForReview(plan)}
             onOpenDeadlineManager={() => setIsDeadlineModalOpen(true)}
             onOpenDirectoryModal={() => setIsDirectoryModalOpen(true)}
@@ -920,23 +966,35 @@ export default function App() {
                   <ListFilter className="w-3.5 h-3.5" />
                   สถานะ:
                 </span>
-                {[
-                  { id: 'all', label: 'ทั้งหมด' },
-                  { id: 'late', label: '⚠️ ส่งช้า' },
-                  ...statusConfigs.map((s) => ({ id: s.id, label: s.label })),
-                ].map((s) => (
-                  <button
-                    key={s.id}
-                    onClick={() => setStatusFilter(s.id)}
-                    className={`px-3 py-1.5 rounded-lg font-medium transition-colors whitespace-nowrap cursor-pointer ${
-                      statusFilter === s.id
-                        ? 'bg-indigo-600 text-white font-bold shadow-xs'
-                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                    }`}
-                  >
-                    {s.label}
-                  </button>
-                ))}
+                {(() => {
+                  const seen = new Set<string>();
+                  const buttons: { id: string; label: string }[] = [];
+                  buttons.push({ id: 'all', label: 'ทั้งหมด' });
+                  seen.add('all');
+                  buttons.push({ id: 'late', label: '⚠️ ส่งช้า' });
+                  seen.add('late');
+
+                  (statusConfigs || []).forEach((s) => {
+                    const cleanId = (s.id || '').trim().toLowerCase();
+                    if (!cleanId || seen.has(cleanId)) return;
+                    seen.add(cleanId);
+                    buttons.push({ id: s.id.trim(), label: s.label });
+                  });
+
+                  return buttons.map((s) => (
+                    <button
+                      key={`status-filter-${s.id}`}
+                      onClick={() => setStatusFilter(s.id)}
+                      className={`px-3 py-1.5 rounded-lg font-medium transition-colors whitespace-nowrap cursor-pointer ${
+                        statusFilter === s.id
+                          ? 'bg-indigo-600 text-white font-bold shadow-xs'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  ));
+                })()}
               </div>
             )}
           </div>
@@ -1139,6 +1197,8 @@ export default function App() {
         onSaveStatusConfigs={handleSaveStatusConfigs}
         plans={plans}
         onUpdatePlanStatus={handleQuickChangePlanStatus}
+        isSupabaseConnected={isSupabaseConnected}
+        onOpenSupabaseConfig={() => setIsSupabaseModalOpen(true)}
       />
 
       {/* Edit Plan Modal (Teacher owner or Admin) */}

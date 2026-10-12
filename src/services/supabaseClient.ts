@@ -575,6 +575,14 @@ export function subscribeToDatabaseChanges(
           onChange('teachers');
         }
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'system_settings' },
+        (payload) => {
+          console.log('[Realtime DB Sync] system_settings changed:', payload.eventType);
+          onChange('system_settings');
+        }
+      )
       .subscribe((status) => {
         console.log('[Realtime DB Sync] Status:', status);
       });
@@ -590,6 +598,109 @@ export function subscribeToDatabaseChanges(
     console.warn('Realtime subscription error:', err);
     return () => {};
   }
+}
+
+// System Settings API (Syncs deadlineConfigs, document types, and statusConfigs across computers)
+export async function fetchSystemSetting<T>(
+  key: string,
+  fallbackValue: T
+): Promise<{ data: T; isSupabase: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from('system_settings')
+        .select('value')
+        .eq('key', key)
+        .maybeSingle();
+
+      if (!error && data && data.value) {
+        return { data: data.value as T, isSupabase: true };
+      }
+    } catch (err: any) {
+      console.warn(`Could not fetch system setting '${key}' from Supabase:`, err);
+    }
+  }
+  return { data: fallbackValue, isSupabase: false };
+}
+
+export async function saveSystemSetting<T>(
+  key: string,
+  value: T
+): Promise<{ success: boolean; isSupabase: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { error } = await client.from('system_settings').upsert({
+        key,
+        value,
+        updated_at: new Date().toISOString(),
+      });
+      if (!error) {
+        return { success: true, isSupabase: true };
+      }
+      console.warn(`Supabase save system setting '${key}' error:`, error.message);
+      return { success: false, isSupabase: true, error: error.message };
+    } catch (err: any) {
+      console.warn(`Exception saving system setting '${key}':`, err);
+      return { success: false, isSupabase: true, error: err?.message };
+    }
+  }
+  return { success: true, isSupabase: false };
+}
+
+// SQL Snippet specifically for existing Supabase databases to create the system_settings table
+export const SYSTEM_SETTINGS_TABLE_SQL = `-- รันคำสั่งนี้ใน Supabase SQL Editor เพื่อสร้างตารางบันทึกประเภทเอกสารและกำหนดเวลาส่ง
+CREATE TABLE IF NOT EXISTS public.system_settings (
+    "key" VARCHAR(100) PRIMARY KEY,
+    "value" JSONB NOT NULL,
+    "updated_at" TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.system_settings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all access to system_settings" ON public.system_settings;
+CREATE POLICY "Allow all access to system_settings" ON public.system_settings FOR ALL USING (true) WITH CHECK (true);
+
+DO $$
+BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.system_settings;
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+    WHEN undefined_object THEN NULL;
+END $$;
+`;
+
+export async function checkSystemSettingsTableStatus(): Promise<{
+  connected: boolean;
+  tableExists: boolean;
+  error?: string;
+}> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { connected: false, tableExists: false, error: 'ยังไม่ได้เชื่อมต่อกับ Supabase' };
+  }
+  try {
+    const { error } = await client.from('system_settings').select('key').limit(1);
+    if (!error) {
+      return { connected: true, tableExists: true };
+    }
+    if (error.code === '42P01' || error.message?.includes('relation "system_settings" does not exist')) {
+      return { connected: true, tableExists: false, error: 'ยังไม่ได้สร้างตาราง system_settings บน Supabase' };
+    }
+    return { connected: true, tableExists: false, error: error.message };
+  } catch (err: any) {
+    return { connected: false, tableExists: false, error: err?.message };
+  }
+}
+
+export async function seedDocumentTypesToSupabase(
+  configs?: any[]
+): Promise<{ success: boolean; isSupabase: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, isSupabase: false, error: 'ยังไม่ได้ตั้งค่า Supabase URL หรือ Key' };
+  }
+  return await saveSystemSetting('deadline_configs', configs);
 }
 
 export async function seedPlansToSupabase(): Promise<{ success: boolean; count: number; error?: string }> {
@@ -787,6 +898,26 @@ DO UPDATE SET
     "phone" = EXCLUDED."phone",
     "department" = EXCLUDED."department",
     "role" = EXCLUDED."role";
+
+-- 7. สร้างตาราง "system_settings" สำหรับการตั้งค่าระบบ (ประเภทเอกสาร, กำหนดส่ง, สถานะ) ซิงค์ข้ามทุกเครื่อง
+CREATE TABLE IF NOT EXISTS public.system_settings (
+    "key" VARCHAR(100) PRIMARY KEY,
+    "value" JSONB NOT NULL,
+    "updated_at" TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.system_settings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all access to system_settings" ON public.system_settings;
+CREATE POLICY "Allow all access to system_settings" ON public.system_settings FOR ALL USING (true) WITH CHECK (true);
+
+-- เปิดการใช้งาน Realtime บนตาราง system_settings (หากต้องการให้ซิงค์ทันทีแบบ Live)
+DO $$
+BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.system_settings;
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+    WHEN undefined_object THEN NULL;
+END $$;
 
 -- สำเร็จ! ตารางและคลังเก็บไฟล์พร้อมใช้งานกับแอพพลิเคชัน`;
 }

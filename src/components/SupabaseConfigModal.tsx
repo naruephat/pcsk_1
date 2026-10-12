@@ -18,6 +18,8 @@ import {
   generateSupabaseSqlScript,
   seedTeachersToSupabase,
   seedPlansToSupabase,
+  seedDocumentTypesToSupabase,
+  SYSTEM_SETTINGS_TABLE_SQL,
   getSupabaseClient,
 } from '../services/supabaseClient';
 
@@ -36,12 +38,15 @@ export const SupabaseConfigModal: React.FC<SupabaseConfigModalProps> = ({
   const [url, setUrl] = useState(currentConfig.url);
   const [anonKey, setAnonKey] = useState(currentConfig.anonKey);
   const [isCopied, setIsCopied] = useState(false);
+  const [isCopiedSettingsSql, setIsCopiedSettingsSql] = useState(false);
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [testMessage, setTestMessage] = useState('');
   const [isSeeding, setIsSeeding] = useState(false);
   const [seedMessage, setSeedMessage] = useState('');
   const [isSyncingPlans, setIsSyncingPlans] = useState(false);
   const [syncPlansMessage, setSyncPlansMessage] = useState('');
+  const [isSyncingDocTypes, setIsSyncingDocTypes] = useState(false);
+  const [syncDocTypesMessage, setSyncDocTypesMessage] = useState('');
 
   if (!isOpen) return null;
 
@@ -57,6 +62,26 @@ export const SupabaseConfigModal: React.FC<SupabaseConfigModalProps> = ({
     navigator.clipboard.writeText(sql);
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);
+  };
+
+  const handleCopySettingsTableSql = () => {
+    navigator.clipboard.writeText(SYSTEM_SETTINGS_TABLE_SQL);
+    setIsCopiedSettingsSql(true);
+    setTimeout(() => setIsCopiedSettingsSql(false), 2000);
+  };
+
+  const handleSyncDocTypes = async () => {
+    setIsSyncingDocTypes(true);
+    setSyncDocTypesMessage('');
+    saveSupabaseConfig({ url: url.trim(), anonKey: anonKey.trim() });
+    const res = await seedDocumentTypesToSupabase();
+    if (res.success) {
+      setSyncDocTypesMessage('ซิงค์ข้อมูลประเภทเอกสารและวันส่งงานขึ้น Supabase สำเร็จเรียบร้อย! คอมพิวเตอร์เครื่องอื่นจะมองเห็นทันที');
+      onConfigSaved();
+    } else {
+      setSyncDocTypesMessage(`เกิดข้อผิดพลาด: ${res.error || 'ตาราง system_settings ยังไม่ถูกสร้าง (โปรดรัน SQL ด้านล่างก่อน)'}`);
+    }
+    setIsSyncingDocTypes(false);
   };
 
   const handleTestConnection = async () => {
@@ -327,6 +352,63 @@ export const SupabaseConfigModal: React.FC<SupabaseConfigModalProps> = ({
                   }`}
                 >
                   {syncPlansMessage}
+                </div>
+              )}
+
+              {/* 3. Sync Document Types & Deadlines */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-amber-50/80 p-3 rounded-xl border border-amber-200 text-xs gap-2">
+                <div>
+                  <span className="text-amber-950 font-bold block">
+                    3. ซิงค์ประเภทเอกสารและกำหนดเวลาส่ง (แผนฉบับย่อ / แผนฉบับสมบูรณ์ / ประเภทใหม่):
+                  </span>
+                  <span className="text-amber-800 text-[11px]">
+                    บันทึกลงตาราง system_settings เพื่อให้อุปกรณ์และคอมพิวเตอร์เครื่องอื่นมองเห็นตรงกัน
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleCopySettingsTableSql}
+                    className="px-2.5 py-1.5 bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg font-medium flex items-center gap-1 transition-colors"
+                    title="คัดลอกเฉพาะโค้ด SQL สร้างตาราง system_settings (สำหรับผู้ที่มีฐานข้อมูลเดิมอยู่แล้ว)"
+                  >
+                    {isCopiedSettingsSql ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>คัดลอกแล้ว!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>คัดลอก SQL ตารางระบบ</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSyncDocTypes}
+                    disabled={isSyncingDocTypes || !url || !anonKey}
+                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                  >
+                    {isSyncingDocTypes ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="w-3.5 h-3.5" />
+                    )}
+                    ซิงค์ประเภทเอกสารขึ้น Cloud
+                  </button>
+                </div>
+              </div>
+
+              {syncDocTypesMessage && (
+                <div
+                  className={`text-xs p-2.5 rounded-lg border ${
+                    syncDocTypesMessage.includes('สำเร็จ')
+                      ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                      : 'text-rose-700 bg-rose-50 border-rose-200'
+                  }`}
+                >
+                  {syncDocTypesMessage}
                 </div>
               )}
             </div>

@@ -44,8 +44,19 @@ export const EditPlanModal: React.FC<EditPlanModalProps> = ({
   deadlineConfigs,
 }) => {
   const currentStatuses = statusConfigs || getSavedStatusConfigs();
-  const currentDeadlines = deadlineConfigs || getSavedDeadlineConfigs();
-  const availablePlanTypes = currentDeadlines.map((d) => d.name);
+  const currentDeadlines = deadlineConfigs && deadlineConfigs.length > 0 ? deadlineConfigs : getSavedDeadlineConfigs();
+  const availablePlanTypes = React.useMemo(() => {
+    const seen = new Set<string>();
+    const list: string[] = [];
+    currentDeadlines.forEach((d) => {
+      const name = (d.name || '').trim();
+      if (name && !seen.has(name)) {
+        seen.add(name);
+        list.push(name);
+      }
+    });
+    return list.length > 0 ? list : ['แผนการจัดการเรียนรู้ฉบับย่อ', 'แผนการจัดการเรียนรู้ฉบับสมบูรณ์'];
+  }, [currentDeadlines]);
 
   const [formData, setFormData] = useState<LessonPlan>({ ...plan });
   const [isSaving, setIsSaving] = useState(false);

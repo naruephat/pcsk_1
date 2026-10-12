@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Teacher, LessonPlan, isTeacherAdmin } from '../types';
+import { Teacher, LessonPlan, isTeacherAdmin, PlanTypeDeadlineConfig } from '../types';
 import { formatGoogleDriveImageUrl, getInitials } from '../utils/imageUtils';
 import { getSavedDeadlineConfigs } from '../utils/deadlineUtils';
 import {
@@ -33,6 +33,7 @@ interface ExecutiveDashboardProps {
   teachers: Teacher[];
   plans: LessonPlan[];
   currentTeacher: Teacher;
+  deadlineConfigs?: PlanTypeDeadlineConfig[];
   onOpenPlan?: (plan: LessonPlan) => void;
   onOpenDeadlineManager?: () => void;
   onOpenDirectoryModal?: () => void;
@@ -42,6 +43,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   teachers,
   plans,
   currentTeacher,
+  deadlineConfigs,
   onOpenPlan,
   onOpenDeadlineManager,
   onOpenDirectoryModal,
@@ -69,7 +71,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
     'สังคมศึกษา ศาสนา และวัฒนธรรม',
     'ศิลปะ',
     'สุขศึกษาและพลศึกษา',
-    'กลุ่มบริหารวิชาการ',
+    'การงานอาชีพ',
   ];
 
   // Dynamic document types based on deadline configs + plans
@@ -77,12 +79,13 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
     const list: string[] = ['ทั้งหมด'];
     const seen = new Set<string>();
 
-    // 1. Types from deadline settings configured by academic admin
-    const savedDeadlines = getSavedDeadlineConfigs();
-    savedDeadlines.forEach((cfg) => {
-      if (cfg.name && !seen.has(cfg.name.trim())) {
-        seen.add(cfg.name.trim());
-        list.push(cfg.name.trim());
+    // 1. Types from deadline settings configured by academic admin (synced from Cloud/state)
+    const activeDeadlines = deadlineConfigs && deadlineConfigs.length > 0 ? deadlineConfigs : getSavedDeadlineConfigs();
+    activeDeadlines.forEach((cfg) => {
+      const name = (cfg.name || '').trim();
+      if (name && !seen.has(name)) {
+        seen.add(name);
+        list.push(name);
       }
     });
 

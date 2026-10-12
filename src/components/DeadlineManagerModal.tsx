@@ -15,6 +15,11 @@ import {
   DEFAULT_STATUS_CONFIGS,
 } from '../utils/deadlineUtils';
 import {
+  SYSTEM_SETTINGS_TABLE_SQL,
+  checkSystemSettingsTableStatus,
+  seedDocumentTypesToSupabase,
+} from '../services/supabaseClient';
+import {
   X,
   Calendar,
   Clock,
@@ -33,6 +38,13 @@ import {
   HelpCircle,
   Check,
   Search,
+  Database,
+  Copy,
+  Download,
+  Upload,
+  ExternalLink,
+  HardDrive,
+  FileJson,
 } from 'lucide-react';
 
 interface DeadlineManagerModalProps {
@@ -44,6 +56,8 @@ interface DeadlineManagerModalProps {
   onSaveStatusConfigs: (configs: PlanStatusConfig[]) => void;
   plans: LessonPlan[];
   onUpdatePlanStatus?: (planId: string, newStatus: string, isLate?: boolean, adminNotes?: string) => Promise<void> | void;
+  isSupabaseConnected?: boolean;
+  onOpenSupabaseConfig?: () => void;
 }
 
 const COLOR_OPTIONS: { id: StatusColor; name: string; bg: string }[] = [
@@ -66,6 +80,8 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
   onSaveStatusConfigs,
   plans,
   onUpdatePlanStatus,
+  isSupabaseConnected,
+  onOpenSupabaseConfig,
 }) => {
   const [activeTab, setActiveTab] = useState<'deadlines' | 'statuses' | 'plans'>('deadlines');
 
@@ -102,16 +118,151 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
   const [planFilter, setPlanFilter] = useState<string>('all');
   const [updatingPlanId, setUpdatingPlanId] = useState<string | null>(null);
 
+  // Export / Import / Copy Settings state
+  const [copiedSettings, setCopiedSettings] = useState(false);
+  const [showJsonModal, setShowJsonModal] = useState(false);
+  const [jsonInput, setJsonInput] = useState('');
+  const [jsonError, setJsonError] = useState<string | null>(null);
+
+  // Cloud database table status
+  const [tableStatus, setTableStatus] = useState<{ checked: boolean; exists: boolean; error?: string }>({
+    checked: false,
+    exists: false,
+  });
+  const [copiedSql, setCopiedSql] = useState(false);
+  const [isSyncingCloud, setIsSyncingCloud] = useState(false);
+  const [syncCloudNotice, setSyncCloudNotice] = useState<string | null>(null);
+  const [showCloudCard, setShowCloudCard] = useState(false);
+
+  React.useEffect(() => {
+    setDeadlines(deadlineConfigs);
+  }, [deadlineConfigs]);
+
+  React.useEffect(() => {
+    setStatuses(statusConfigs);
+  }, [statusConfigs]);
+
+  React.useEffect(() => {
+    if (isOpen && isSupabaseConnected) {
+      checkSystemSettingsTableStatus().then((res) => {
+        setTableStatus({ checked: true, exists: res.tableExists, error: res.error });
+      });
+    }
+  }, [isOpen, isSupabaseConnected]);
+
+  const handleCopySystemSettingsSql = () => {
+    navigator.clipboard.writeText(SYSTEM_SETTINGS_TABLE_SQL);
+    setCopiedSql(true);
+    setTimeout(() => setCopiedSql(false), 3000);
+  };
+
+  const handleSyncDocumentTypesNow = async () => {
+    setIsSyncingCloud(true);
+    setSyncCloudNotice(null);
+    try {
+      const res = await seedDocumentTypesToSupabase(deadlines);
+      if (res.success) {
+        setSyncCloudNotice(`ซิงค์ประเภทเอกสาร ${deadlines.length} รายการ ขึ้น Cloud Database สำเร็จ! อุปกรณ์และเครื่องอื่นของครูทุกคนจะมองเห็นทันที`);
+        setTableStatus({ checked: true, exists: true });
+      } else {
+        setSyncCloudNotice(`ไม่สามารถบันทึกลง Cloud: ${res.error || 'ตาราง system_settings ยังไม่พร้อมใช้งาน'}`);
+      }
+    } catch (e: any) {
+      setSyncCloudNotice(`เกิดข้อผิดพลาด: ${e?.message}`);
+    } finally {
+      setIsSyncingCloud(false);
+    }
+  };
+
+  const handleCopySettingsJson = () => {
+    const payload = JSON.stringify(
+      {
+        exportedAt: new Date().toISOString(),
+        deadlineConfigs: deadlines,
+        statusConfigs: statuses,
+      },
+      null,
+      2
+    );
+    navigator.clipboard.writeText(payload);
+    setCopiedSettings(true);
+    setTimeout(() => setCopiedSettings(false), 2500);
+  };
+
+  const handleDownloadSettingsJson = () => {
+    const payload = JSON.stringify(
+      {
+        exportedAt: new Date().toISOString(),
+        deadlineConfigs: deadlines,
+        statusConfigs: statuses,
+      },
+      null,
+      2
+    );
+    const blob = new Blob([payload], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pcsk_deadline_settings_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportJson = () => {
+    try {
+      setJsonError(null);
+      const parsed = JSON.parse(jsonInput.trim());
+      if (parsed.deadlineConfigs && Array.isArray(parsed.deadlineConfigs)) {
+        handleSaveDeadlines(parsed.deadlineConfigs);
+      } else if (Array.isArray(parsed)) {
+        handleSaveDeadlines(parsed);
+      }
+      if (parsed.statusConfigs && Array.isArray(parsed.statusConfigs)) {
+        handleSaveStatuses(parsed.statusConfigs);
+      }
+      setShowJsonModal(false);
+      setJsonInput('');
+      alert('นำเข้าการตั้งค่าประเภทเอกสารสำเร็จเรียบร้อย!');
+    } catch (e: any) {
+      setJsonError('รูปแบบ JSON ไม่ถูกต้อง กรุณาตรวจสอบโค้ดที่คัดลอกมา');
+    }
+  };
+
   if (!isOpen) return null;
 
-  // Save deadlines
-  const handleSaveDeadlines = (updatedList: PlanTypeDeadlineConfig[]) => {
+  // Save deadlines with automatic instant update to SQL (Supabase)
+  const handleSaveDeadlines = async (updatedList: PlanTypeDeadlineConfig[]) => {
     setDeadlines(updatedList);
     onSaveDeadlineConfigs(updatedList);
+
+    // Auto-update to SQL (Supabase) immediately
+    if (isSupabaseConnected) {
+      try {
+        const res = await seedDocumentTypesToSupabase(updatedList);
+        if (res.success) {
+          setSyncCloudNotice(
+            `⚡ อัปเดตเข้า SQL อัตโนมัติเรียบร้อยแล้ว! (${updatedList.length} ประเภทเอกสาร) เครื่องอื่นเห็นข้อมูลทันที`
+          );
+          setTableStatus({ checked: true, exists: true });
+        } else {
+          setSyncCloudNotice(
+            `⚠️ บันทึกลงเครื่องแล้ว แต่ส่งไป SQL ไม่สำเร็จ: ${res.error || 'กรุณารันคำสั่งสร้างตาราง system_settings'}`
+          );
+        }
+      } catch (err: any) {
+        setSyncCloudNotice(`⚠️ เกิดข้อผิดพลาดขณะส่งเข้า SQL: ${err?.message}`);
+      }
+    } else {
+      setSyncCloudNotice(
+        `💾 บันทึกประเภทเอกสารในเครื่องนี้เรียบร้อย (${updatedList.length} รายการ)`
+      );
+    }
   };
 
   // Add new deadline config
-  const handleAddNewDeadline = (e: React.FormEvent) => {
+  const handleAddNewDeadline = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDeadline.name?.trim()) return;
 
@@ -132,7 +283,6 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
     };
 
     const nextList = [...deadlines, item];
-    handleSaveDeadlines(nextList);
     setIsAddingDeadline(false);
     setNewDeadline({
       name: '',
@@ -147,15 +297,16 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
       is_active: true,
       notes: '',
     });
+    await handleSaveDeadlines(nextList);
   };
 
-  const handleDeleteDeadline = (id: string) => {
+  const handleDeleteDeadline = async (id: string) => {
     if (deadlines.length <= 1) {
       alert('ต้องมีประเภทเอกสารและกำหนดส่งอย่างน้อย 1 ประเภทในระบบ');
       return;
     }
     const filtered = deadlines.filter((d) => d.id !== id);
-    handleSaveDeadlines(filtered);
+    await handleSaveDeadlines(filtered);
   };
 
   const handleUpdateDeadlineItem = (id: string, updates: Partial<PlanTypeDeadlineConfig>) => {
@@ -320,9 +471,207 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
 
         {/* Modal Body */}
         <div className="p-5 sm:p-6 overflow-y-auto flex-1 space-y-6 bg-slate-50/50">
+          {/* Storage & Cloud Database Status Card (ซ่อนตามคำขอของผู้ใช้ โดยสามารถคลิกเปิดดูได้) */}
+          {showCloudCard ? (
+            <div
+              className={`p-4 rounded-2xl border text-xs flex flex-col space-y-3 ${
+                isSupabaseConnected
+                  ? tableStatus.checked && !tableStatus.exists
+                    ? 'bg-amber-50/90 border-amber-300 text-amber-950'
+                    : 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
+                  : 'bg-amber-50/90 border-amber-300 text-amber-950'
+              }`}
+            >
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div
+                    className={`p-2.5 rounded-xl shrink-0 mt-0.5 ${
+                      isSupabaseConnected && tableStatus.exists
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-amber-100 text-amber-700'
+                    }`}
+                  >
+                    <Database className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 font-bold text-sm">
+                      <span>
+                        {isSupabaseConnected
+                          ? tableStatus.checked && !tableStatus.exists
+                            ? 'สถานะ: เชื่อมต่อ Supabase แล้ว (แต่ยังไม่ได้สร้างตาราง system_settings)'
+                            : 'สถานะ: เชื่อมต่อ Cloud Database แล้ว (ออนไลน์)'
+                          : 'สถานะ: โหมดจัดเก็บเฉพาะในบราวเซอร์ของเครื่องนี้ (Local Storage)'}
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          isSupabaseConnected && tableStatus.exists
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-amber-500 text-white'
+                        }`}
+                      >
+                        {isSupabaseConnected && tableStatus.exists
+                          ? 'ซิงค์ข้ามคอมพิวเตอร์ทุกเครื่อง Realtime'
+                          : 'บันทึกในเครื่องนี้ (ยังไม่ซิงค์ข้ามเครื่อง)'}
+                      </span>
+                    </div>
+                    <p className="mt-1 leading-relaxed text-slate-600">
+                      {isSupabaseConnected ? (
+                        tableStatus.checked && !tableStatus.exists ? (
+                          <>
+                            <strong className="text-amber-900">เหตุผลที่ประเภทเอกสารยังไม่ขึ้นในคอมเครื่องอื่น:</strong>{' '}
+                            ฐานข้อมูล Supabase ยังไม่มีตาราง <code className="bg-amber-100 px-1 py-0.5 rounded font-mono text-amber-900">system_settings</code>{' '}
+                            สำหรับเก็บประเภทเอกสาร ให้กดปุ่ม <strong>&quot;คัดลอก SQL สร้างตารางระบบ&quot;</strong> แล้วนำไปวางใน Supabase SQL Editor แล้วกด Run เพียง 1 ครั้ง ข้อมูลจะซิงค์ไปคอมเครื่องอื่นทันที!
+                          </>
+                        ) : (
+                          <>
+                            ประเภทเอกสารทุกประเภท (เช่น แผนการจัดการเรียนรู้ฉบับย่อ, แผนการจัดการเรียนรู้ฉบับสมบูรณ์ และประเภทเอกสารที่เพิ่มใหม่) บันทึกลงตาราง{' '}
+                            <code className="bg-emerald-100/80 px-1 py-0.5 rounded text-emerald-800 font-mono">
+                              system_settings
+                            </code>{' '}
+                            บน Supabase และซิงค์ตรงกันในทุกเครื่องคอมพิวเตอร์ของครูทุกคนทันที
+                          </>
+                        )
+                      ) : (
+                        <>
+                          <strong className="text-amber-900">เหตุผลที่ยังไม่ขึ้นที่คอมเครื่องอื่น:</strong>{' '}
+                          เพราะปัจจุบันเว็บยังไม่ได้ตั้งค่าเชื่อมต่อฐานข้อมูลคลาวด์ (Supabase) ข้อมูลจึงถูกบันทึกไว้ใน Local Storage ของเครื่องนี้เท่านั้น หากเปิดจากคอมเครื่องอื่นระบบจะแสดงประเภทเอกสารเริ่มต้นแทน
+                        </>
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 shrink-0 pt-1 md:pt-0">
+                  {isSupabaseConnected && tableStatus.checked && !tableStatus.exists && (
+                    <button
+                      type="button"
+                      onClick={handleCopySystemSettingsSql}
+                      className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer transition-colors"
+                    >
+                      {copiedSql ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-300" />
+                          <span>คัดลอก SQL ตารางระบบแล้ว!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>คัดลอก SQL สร้างตารางระบบ</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+
+                  {isSupabaseConnected && (
+                    <button
+                      type="button"
+                      onClick={handleSyncDocumentTypesNow}
+                      disabled={isSyncingCloud}
+                      className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer transition-colors disabled:opacity-50"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{isSyncingCloud ? 'กำลังซิงค์...' : 'ซิงค์ประเภทเอกสารขึ้น Cloud เดี๋ยวนี้'}</span>
+                    </button>
+                  )}
+
+                  {onOpenSupabaseConfig && !isSupabaseConnected && (
+                    <button
+                      type="button"
+                      onClick={onOpenSupabaseConfig}
+                      className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>ตั้งค่า Database กลาง</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleCopySettingsJson}
+                    className="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+                    title="คัดลอก JSON การตั้งค่าทั้งหมดไปวางในเครื่องอื่น"
+                  >
+                    {copiedSettings ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span className="text-emerald-700 font-bold">คัดลอกแล้ว!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5 text-slate-500" />
+                        <span>คัดลอก JSON</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowJsonModal(true)}
+                    className="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+                    title="นำเข้าการตั้งค่าจากโค้ด JSON"
+                  >
+                    <Upload className="w-3.5 h-3.5 text-slate-500" />
+                    <span>นำเข้า JSON</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDownloadSettingsJson}
+                    className="p-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs cursor-pointer transition-colors"
+                    title="ดาวน์โหลดไฟล์สำรอง .json"
+                  >
+                    <Download className="w-3.5 h-3.5 text-slate-500" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowCloudCard(false)}
+                    className="px-2.5 py-1.5 text-slate-500 hover:text-slate-800 text-xs font-bold hover:bg-black/5 rounded-xl transition-colors cursor-pointer"
+                    title="ซ่อนกล่องนี้"
+                  >
+                    ✕ ซ่อน
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between px-1 text-xs text-slate-400">
+              <span className="flex items-center gap-1.5 text-[11px]">
+                <span className={`w-2 h-2 rounded-full ${isSupabaseConnected ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
+                <span>{isSupabaseConnected ? 'ระบบเชื่อมต่อ Cloud SQL อัตโนมัติ (Online)' : 'โหมดในเครื่อง'}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowCloudCard(true)}
+                className="text-[11px] text-slate-400 hover:text-indigo-600 font-medium underline cursor-pointer"
+              >
+                แสดงข้อมูลการเชื่อมต่อและเครื่องมือซิงค์ฐานข้อมูล
+              </button>
+            </div>
+          )}
+
           {/* TAB 1: DEADLINES CONFIG */}
           {activeTab === 'deadlines' && (
             <div className="space-y-6">
+              {/* Instant SQL Auto-Sync Banner */}
+              {syncCloudNotice && (
+                <div
+                  className={`p-3.5 rounded-2xl text-xs font-bold border flex items-center justify-between gap-3 shadow-xs animate-in fade-in slide-in-from-top-1 duration-200 ${
+                    syncCloudNotice.includes('สำเร็จ') || syncCloudNotice.includes('⚡')
+                      ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                      : 'bg-amber-50 text-amber-900 border-amber-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+                    <span>{syncCloudNotice}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSyncCloudNotice(null)}
+                    className="p-1 rounded-lg hover:bg-black/5 text-slate-500 hover:text-slate-800 text-xs font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-amber-50/70 border border-amber-200/80 rounded-2xl p-4 text-xs">
                 <div className="flex items-start gap-2.5">
                   <Info className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
@@ -498,6 +847,9 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                     </label>
 
                     <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-medium text-slate-500 hidden sm:inline">
+                        {isSupabaseConnected ? '☁️ ซิงค์ Cloud (เห็นทุกเครื่อง)' : '💾 บันทึกลงเครื่องนี้'}
+                      </span>
                       <button
                         type="button"
                         onClick={() => setIsAddingDeadline(false)}
@@ -507,9 +859,11 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                       </button>
                       <button
                         type="submit"
-                        className="px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white rounded-xl text-xs font-bold shadow-sm"
+                        className="px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white rounded-xl text-xs font-bold shadow-sm cursor-pointer active:scale-95 transition-all flex items-center gap-1.5"
+                        title="บันทึกประเภทเอกสารและอัปเดตเข้า SQL อัตโนมัติทันที"
                       >
-                        บันทึกประเภทเอกสารนี้
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>บันทึกประเภทเอกสารนี้ (อัพเดทเข้า SQL ออโต้)</span>
                       </button>
                     </div>
                   </div>
@@ -639,11 +993,16 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                                   <span>อนุญาตให้ส่งช้าได้ (ติดป้ายส่งช้า)</span>
                                 </label>
                                 <button
-                                  onClick={() => setEditingDeadlineId(null)}
-                                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingDeadlineId(null);
+                                    handleSaveDeadlines(deadlines);
+                                  }}
+                                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer shadow-xs active:scale-95 transition-all"
+                                  title="บันทึกการแก้ไขวันเวลาและอัปเดตเข้า SQL อัตโนมัติทันที"
                                 >
                                   <Check className="w-3.5 h-3.5" />
-                                  <span>เสร็จสิ้น</span>
+                                  <span>เสร็จสิ้น (อัพเดทเข้า SQL ออโต้)</span>
                                 </button>
                               </div>
                             </div>
@@ -665,9 +1024,10 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                           </button>
                           {deadlines.length > 1 && (
                             <button
+                              type="button"
                               onClick={() => handleDeleteDeadline(dl.id)}
                               className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                              title="ลบประเภทนี้"
+                              title="ลบประเภทนี้และอัปเดตเข้า SQL อัตโนมัติ"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -933,23 +1293,35 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                 {/* Filter */}
                 <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 text-xs shrink-0">
                   <span className="text-slate-400 text-xs">กรอง:</span>
-                  {[
-                    { id: 'all', label: 'ทั้งหมด' },
-                    { id: 'late', label: '⚠️ ส่งช้าเท่านั้น' },
-                    ...statuses.map((s) => ({ id: s.id, label: s.label })),
-                  ].map((f) => (
-                    <button
-                      key={f.id}
-                      onClick={() => setPlanFilter(f.id)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
-                        planFilter === f.id
-                          ? 'bg-amber-600 text-white shadow-xs'
-                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                      }`}
-                    >
-                      {f.label}
-                    </button>
-                  ))}
+                  {(() => {
+                    const seen = new Set<string>();
+                    const buttons: { id: string; label: string }[] = [];
+                    buttons.push({ id: 'all', label: 'ทั้งหมด' });
+                    seen.add('all');
+                    buttons.push({ id: 'late', label: '⚠️ ส่งช้าเท่านั้น' });
+                    seen.add('late');
+
+                    (statuses || []).forEach((s) => {
+                      const cleanId = (s.id || '').trim().toLowerCase();
+                      if (!cleanId || seen.has(cleanId)) return;
+                      seen.add(cleanId);
+                      buttons.push({ id: s.id.trim(), label: s.label });
+                    });
+
+                    return buttons.map((f) => (
+                      <button
+                        key={`plan-filter-${f.id}`}
+                        onClick={() => setPlanFilter(f.id)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                          planFilter === f.id
+                            ? 'bg-amber-600 text-white shadow-xs'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        }`}
+                      >
+                        {f.label}
+                      </button>
+                    ));
+                  })()}
                 </div>
               </div>
 
@@ -1070,6 +1442,75 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
           </button>
         </div>
       </div>
+
+      {/* JSON Import Modal */}
+      {showJsonModal && (
+        <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2 text-slate-900 font-bold text-base">
+                <FileJson className="w-5 h-5 text-amber-600" />
+                <span>นำเข้าการตั้งค่าประเภทเอกสาร (Import JSON)</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowJsonModal(false);
+                  setJsonError(null);
+                }}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              วางโค้ด JSON ที่ได้จากการกดปุ่ม <strong>&quot;คัดลอกการตั้งค่า&quot;</strong> จากเครื่องแอดมินอื่น หรือเนื้อหาจากไฟล์สำรอง .json เพื่อนำเข้าการตั้งค่าประเภทเอกสารมายังเครื่องนี้ทันที
+            </p>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">วางโค้ด JSON การตั้งค่าที่นี่:</label>
+              <textarea
+                rows={7}
+                value={jsonInput}
+                onChange={(e) => {
+                  setJsonInput(e.target.value);
+                  setJsonError(null);
+                }}
+                placeholder='{"deadlineConfigs": [...]}'
+                className="w-full p-3 font-mono text-xs border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none"
+              />
+              {jsonError && (
+                <div className="text-rose-600 text-xs font-semibold mt-1 flex items-center gap-1">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>{jsonError}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowJsonModal(false);
+                  setJsonError(null);
+                }}
+                className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl text-xs font-semibold"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                disabled={!jsonInput.trim()}
+                onClick={handleImportJson}
+                className="px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-sm"
+              >
+                นำเข้าข้อมูลทันที
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -43,9 +43,20 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
 
   const approvalRate = totalPlans > 0 ? Math.round((approvedPlans / totalPlans) * 100) : 0;
 
-  // Group by learning areas (Admin only)
+  // Group by learning areas (Admin only) - exclude admin roles and administrative groups
   const learningAreas = Array.from(
-    new Set(teachers.map((t) => t.Learning_Area).filter((a) => a && a !== '-'))
+    new Set(
+      teachers
+        .filter((t) => !isTeacherAdmin(t))
+        .map((t) => t.Learning_Area)
+        .filter(
+          (a) =>
+            a &&
+            a !== '-' &&
+            !a.includes('กลุ่มบริหาร') &&
+            !a.includes('ฝ่ายบริหาร')
+        )
+    )
   );
 
   return (
