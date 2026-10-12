@@ -16,6 +16,7 @@ import {
   RefreshCw,
   Calendar,
   BarChart3,
+  Bell,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -33,6 +34,8 @@ interface NavbarProps {
   lastSyncTime?: string;
   isSyncing?: boolean;
   onManualSync?: () => void;
+  pendingAssignmentsCount?: number;
+  onScrollToAssignments?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -50,6 +53,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   lastSyncTime,
   isSyncing = false,
   onManualSync,
+  pendingAssignmentsCount,
+  onScrollToAssignments,
 }) => {
   const photoUrl = currentTeacher ? formatGoogleDriveImageUrl(currentTeacher.photo) : '';
   const isAdmin = isTeacherAdmin(currentTeacher);
@@ -128,6 +133,28 @@ export const Navbar: React.FC<NavbarProps> = ({
                   >
                     <Users className="w-4 h-4 text-indigo-600" />
                     บุคลากร (27 ท่าน)
+                  </button>
+                )}
+
+                {/* Notification Bell for Regular Teachers (assigned documents from admin) */}
+                {!isAdmin && onScrollToAssignments && (
+                  <button
+                    onClick={onScrollToAssignments}
+                    className="relative p-2 rounded-xl text-slate-600 hover:text-indigo-600 hover:bg-slate-100 transition-colors"
+                    title={
+                      pendingAssignmentsCount && pendingAssignmentsCount > 0
+                        ? `มีภาระงานที่ Admin มอบหมายรอส่ง ${pendingAssignmentsCount} รายการ`
+                        : 'ส่งเอกสารที่ได้รับมอบหมายครบทุกรายการแล้ว'
+                    }
+                  >
+                    <Bell className="w-5 h-5" />
+                    {pendingAssignmentsCount !== undefined && pendingAssignmentsCount > 0 ? (
+                      <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white rounded-full text-[10px] font-extrabold flex items-center justify-center animate-pulse shadow-sm">
+                        {pendingAssignmentsCount}
+                      </span>
+                    ) : (
+                      <span className="absolute 1.5 top-1 right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full ring-2 ring-white"></span>
+                    )}
                   </button>
                 )}
 

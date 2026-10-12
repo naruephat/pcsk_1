@@ -30,6 +30,7 @@ interface SubmitPlanModalProps {
   isSupabaseConnected?: boolean;
   onOpenSupabaseModal?: () => void;
   deadlineConfigs?: PlanTypeDeadlineConfig[];
+  initialPlanType?: string;
 }
 
 const DEFAULT_PLAN_TYPES: PlanType[] = [
@@ -54,6 +55,7 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
   isSupabaseConnected = false,
   onOpenSupabaseModal,
   deadlineConfigs,
+  initialPlanType,
 }) => {
   const currentDeadlines = deadlineConfigs && deadlineConfigs.length > 0 ? deadlineConfigs : getSavedDeadlineConfigs();
   const availablePlanTypes = React.useMemo(() => {
@@ -68,7 +70,9 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
     });
     return list.length > 0 ? list : DEFAULT_PLAN_TYPES;
   }, [currentDeadlines]);
-  const initialType = availablePlanTypes.length > 0 ? availablePlanTypes[0] : DEFAULT_PLAN_TYPES[0];
+  const initialType = (initialPlanType && availablePlanTypes.includes(initialPlanType))
+    ? initialPlanType
+    : (availablePlanTypes.length > 0 ? availablePlanTypes[0] : DEFAULT_PLAN_TYPES[0]);
 
   const [subjectCode, setSubjectCode] = useState('');
   const [subjectName, setSubjectName] = useState('');
@@ -77,6 +81,15 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
   const [academicYear, setAcademicYear] = useState('2569');
   const [planTitle, setPlanTitle] = useState('');
   const [planType, setPlanType] = useState<PlanType>(initialType);
+
+  // Sync planType when initialPlanType changes or modal opens
+  React.useEffect(() => {
+    if (initialPlanType) {
+      setPlanType(initialPlanType);
+    } else if (availablePlanTypes.length > 0 && !availablePlanTypes.includes(planType)) {
+      setPlanType(availablePlanTypes[0]);
+    }
+  }, [initialPlanType, isOpen]);
   const [totalHours, setTotalHours] = useState<number>(40);
   const [notes, setNotes] = useState('');
 

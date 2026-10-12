@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Teacher,
   LessonPlan,
@@ -50,6 +50,7 @@ import { ConfirmDeleteModal } from './components/ConfirmDeleteModal';
 import { ResubmitPlanModal } from './components/ResubmitPlanModal';
 import { LoadingScreen } from './components/LoadingScreen';
 import { DeadlineManagerModal } from './components/DeadlineManagerModal';
+import { TeacherAssignmentNotification } from './components/TeacherAssignmentNotification';
 import {
   Search,
   Filter,
@@ -93,6 +94,7 @@ export default function App() {
 
   // Modals
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
+  const [submitModalInitialType, setSubmitModalInitialType] = useState<string | undefined>(undefined);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
@@ -527,6 +529,32 @@ export default function App() {
   const mustForceChangePassword = currentTeacher && currentTeacher.Pass === '12345';
   const isAdmin = isTeacherAdmin(currentTeacher);
 
+  const handleOpenSubmitForType = (planType: string) => {
+    setSubmitModalInitialType(planType);
+    setIsSubmitModalOpen(true);
+  };
+
+  const pendingAssignmentsCount = useMemo(() => {
+    if (!currentTeacher || isAdmin) return 0;
+    const activeConfigs = (deadlineConfigs || []).filter((c) => c.is_active !== false);
+    const myPlans = plans.filter((p) => p.teacher_id === currentTeacher.Teacher_ID);
+    let pending = 0;
+    for (const cfg of activeConfigs) {
+      const submitted = myPlans.some(
+        (p) => p.plan_type.trim().toLowerCase() === cfg.name.trim().toLowerCase()
+      );
+      if (!submitted) pending++;
+    }
+    return pending;
+  }, [currentTeacher, isAdmin, deadlineConfigs, plans]);
+
+  const handleScrollToAssignments = () => {
+    const el = document.getElementById('assigned-documents-section');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   // Filtered plans logic
   const filteredPlans = plans.filter((plan) => {
     // CRITICAL: Regular teachers can ONLY see their own plans! Cannot see other IDs!
@@ -619,7 +647,12 @@ export default function App() {
       <Navbar
         currentTeacher={currentTeacher}
         isSupabaseConnected={isSupabaseConnected}
-        onOpenSubmitModal={() => setIsSubmitModalOpen(true)}
+        onOpenSubmitModal={() => {
+          setSubmitModalInitialType(undefined);
+          setIsSubmitModalOpen(true);
+        }}
+        pendingAssignmentsCount={pendingAssignmentsCount}
+        onScrollToAssignments={handleScrollToAssignments}
         onOpenProfileModal={() => {
           setTeacherToEdit(currentTeacher);
           setIsProfileModalOpen(true);
@@ -724,7 +757,10 @@ export default function App() {
               {/* Submit Document button: only for teachers, hidden for admin */}
               {!isAdmin && (
                 <button
-                  onClick={() => setIsSubmitModalOpen(true)}
+                  onClick={() => {
+                    setSubmitModalInitialType(undefined);
+                    setIsSubmitModalOpen(true);
+                  }}
                   className="px-5 py-2.5 bg-white text-indigo-900 hover:bg-indigo-50 rounded-xl text-xs sm:text-sm font-bold shadow-lg transition-transform active:scale-95 flex items-center gap-2"
                 >
                   <PlusCircle className="w-4 h-4 text-indigo-600" />
@@ -878,6 +914,18 @@ export default function App() {
           />
         ) : (
           <>
+            {/* For regular users: Show assigned documents notification & deadline alert */}
+            {!isAdmin && currentTeacher && (
+              <TeacherAssignmentNotification
+                currentTeacher={currentTeacher}
+                plans={plans}
+                deadlineConfigs={deadlineConfigs}
+                statusConfigs={statusConfigs}
+                onOpenSubmitForType={handleOpenSubmitForType}
+                onOpenReceipt={(plan) => setSelectedPlanForReceipt(plan)}
+              />
+            )}
+
             {/* Dashboard Statistics */}
             <DashboardStats
               plans={plans}
@@ -1099,11 +1147,15 @@ export default function App() {
         <SubmitPlanModal
           currentTeacher={currentTeacher}
           isOpen={isSubmitModalOpen}
-          onClose={() => setIsSubmitModalOpen(false)}
+          onClose={() => {
+            setIsSubmitModalOpen(false);
+            setSubmitModalInitialType(undefined);
+          }}
           onSubmit={handleCreatePlan}
           isSupabaseConnected={isSupabaseConnected}
           onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
           deadlineConfigs={deadlineConfigs}
+          initialPlanType={submitModalInitialType}
         />
       )}
 
