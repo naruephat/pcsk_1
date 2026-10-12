@@ -1,0 +1,6 @@
+{
+  "name": "ระบบส่งแผนการสอน (Lesson Plan Submission System)",
+  "description": "ระบบส่งและติดตามแผนการจัดการเรียนรู้สำหรับครูและบุคลากรทางการศึกษา พร้อมจัดการข้อมูลส่วนตัวและเชื่อมต่อฐานข้อมูล Supabase",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
