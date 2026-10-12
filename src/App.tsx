@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import {
   Teacher,
   LessonPlan,
@@ -1252,6 +1253,9 @@ export default function App() {
         isOpen={isLoginModalOpen}
         onLogin={handleSetCurrentUser}
       />
+
+      {/* Vercel Web Analytics */}
+      <Analytics />
     </div>
   );
 }
