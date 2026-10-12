@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import {
   Teacher,
   LessonPlan,
@@ -171,7 +172,7 @@ export default function App() {
           type: 'success',
           message: 'ซิงค์ข้อมูลกับฐานข้อมูลล่าสุดสำเร็จแล้ว!',
           details: `ดึงข้อมูลแผนการสอน ${plansRes.data.length} รายการ และบุคลากร ${teachersRes.data.length} ท่าน (สถานะ: ${
-            plansRes.isSupabase ? 'เชื่อมต่อ Supabase SQL เรียบร้อย' : 'ใช้งาน Local Storage'
+            plansRes.isSupabase ? 'เชื่อมต่อ Supabase SQL เรีย���ร้อย' : 'ใช้งาน Local Storage'
           })`,
         });
       }
@@ -366,7 +367,7 @@ export default function App() {
       setToastNotice({
         type: 'success',
         message: 'อัปเดตผลการตรวจแผนลงใน Supabase SQL เรียบร้อยแล้ว!',
-        details: 'ข้อมูลบนเว็บไซต์และในฐานข้อมูล SQL อัปเดตตรงกันทันที',
+        details: 'ข้อมูลบนเว็บไซต์และในฐานข้อมูล SQL ��ัปเดตตรงกันทันที',
       });
     }
     return res;
@@ -520,7 +521,7 @@ export default function App() {
 
     setToastNotice({
       type: 'info',
-      message: nextLate ? 'ทำเครื่องหมายเป็น "ส่งช้า" แล้ว' : 'ทำเครื่องหมายเป็น "ส่งตรงเวลา" แล้ว',
+      message: nextLate ? 'ทำเครื่องหมายเป็น "ส่งช้า" แล้ว' : 'ทำเครื่องหมายเป็น "ส่งต���งเวลา" แล้ว',
       details: `แผนรหัส ${plan.id} (${plan.subject_code})`,
     });
   };
@@ -1304,6 +1305,9 @@ export default function App() {
         isOpen={isLoginModalOpen}
         onLogin={handleSetCurrentUser}
       />
+      
+      {/* Vercel Speed Insights */}
+      <SpeedInsights />
     </div>
   );
 }
