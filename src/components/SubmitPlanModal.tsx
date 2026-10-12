@@ -168,7 +168,14 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
       const res: any = await onSubmit(newPlan);
 
       if (res && res.isSupabase && !res.success) {
-        setError(`บันทึกในเครื่องแล้ว แต่ Supabase SQL ปฏิเสธ: ${res.error}\n(โปรดตรวจสอบว่าได้สร้างตาราง lesson_plans และรันคำสั่ง SQL ใน Supabase แล้วหรือไม่)`);
+        const isTableMissing =
+          res.error?.includes('42P01') ||
+          res.error?.includes('PGRST205') ||
+          res.error?.includes('สร้างตาราง');
+        const hint = isTableMissing
+          ? '\n(โปรดตรวจสอบว่าได้สร้างตาราง lesson_plans และรันคำสั่ง SQL ใน Supabase แล้วหรือไม่)'
+          : '';
+        setError(`บันทึกในเครื่องแล้ว แต่ Supabase SQL ปฏิเสธ: ${res.error}${hint}`);
         setIsSubmitting(false);
         return;
       }

@@ -79,8 +79,10 @@ export const SupabaseConfigModal: React.FC<SupabaseConfigModalProps> = ({
       // Test query
       const { data, error } = await client.from('teachers').select('count', { count: 'exact', head: true });
       if (error) {
-        // Table might not exist yet
-        if (error.code === '42P01' || error.message.includes('relation "teachers" does not exist')) {
+        if (error.code === 'PGRST125' || error.message.includes('Invalid path specified in request URL')) {
+          setTestStatus('error');
+          setTestMessage('Supabase URL ไม่ถูกต้อง (Code: PGRST125): โปรดตรวจสอบว่าไม่ได้ใส่ /rest/v1 ต่อท้าย หรือใส่ลิงก์หน้าแดชบอร์ด ให้ใช้ Project URL เช่น https://xxxx.supabase.co');
+        } else if (error.code === '42P01' || error.message.includes('relation "teachers" does not exist')) {
           setTestStatus('success');
           setTestMessage('เชื่อมต่อ Supabase สำเร็จ! (แต่ยังไม่ได้สร้างตาราง กรุณาคัดลอก SQL ไปรันใน SQL Editor ด้านล่าง)');
         } else {
@@ -177,6 +179,9 @@ export const SupabaseConfigModal: React.FC<SupabaseConfigModalProps> = ({
                 placeholder="https://xyzcompany.supabase.co"
                 className="w-full px-3.5 py-2.5 font-mono text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
               />
+              <p className="mt-1 text-[11px] text-slate-400">
+                ตัวอย่าง: <span className="font-mono text-slate-600">https://xyzcompany.supabase.co</span> (ห้ามใส่ <code className="text-rose-500">/rest/v1</code> หรือลิงก์หน้าแดชบอร์ด)
+              </p>
             </div>
 
             <div>

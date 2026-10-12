@@ -13,17 +13,81 @@ export interface SupabaseSettings {
   anonKey: string;
 }
 
+/**
+ * Sanitizes Supabase URL to prevent PostgREST PGRST125 (Invalid path specified in request URL).
+ * Common causes on Vercel or manual config:
+ * - Pasting https://xyz.supabase.co/rest/v1 instead of Project URL https://xyz.supabase.co
+ * - Pasting Supabase Dashboard link https://supabase.com/dashboard/project/xyz
+ * - Trailing slashes or wrapping quotes
+ */
+export function sanitizeSupabaseUrl(rawUrl: string): string {
+  if (!rawUrl || typeof rawUrl !== 'string') return '';
+  let url = rawUrl.trim().replace(/^['"]+|['"]+$/g, '').trim();
+  if (!url) return '';
+
+  // If user pasted dashboard URL: e.g. https://supabase.com/dashboard/project/abcdefgh...
+  const dashboardMatch = url.match(/supabase\.com\/dashboard\/project\/([a-zA-Z0-9_-]+)/i);
+  if (dashboardMatch && dashboardMatch[1]) {
+    return `https://${dashboardMatch[1]}.supabase.co`;
+  }
+
+  // Prepend https:// if protocol was omitted
+  if (!/^https?:\/\//i.test(url)) {
+    url = `https://${url}`;
+  }
+
+  try {
+    const parsed = new URL(url);
+    // For standard supabase.co hostnames, strip any extra pathname completely (e.g. /rest/v1, /settings, /)
+    if (parsed.hostname.toLowerCase().endsWith('.supabase.co')) {
+      return `https://${parsed.hostname.toLowerCase()}`;
+    }
+    // For custom/self-hosted domains, strip trailing slashes and /rest/v1
+    let cleanPath = parsed.pathname.replace(/\/+$/, '');
+    if (cleanPath.toLowerCase().endsWith('/rest/v1')) {
+      cleanPath = cleanPath.substring(0, cleanPath.length - 8);
+    }
+    return `${parsed.origin}${cleanPath}`.replace(/\/+$/, '');
+  } catch {
+    return url.replace(/\/rest\/v1\/?$/i, '').replace(/\/+$/, '');
+  }
+}
+
+export function sanitizeSupabaseKey(rawKey: string): string {
+  if (!rawKey || typeof rawKey !== 'string') return '';
+  return rawKey.trim().replace(/^['"]+|['"]+$/g, '').trim();
+}
+
 export function getSavedSupabaseConfig(): SupabaseSettings {
-  const envUrl = (import.meta as any).env?.VITE_SUPABASE_URL || '';
-  const envKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
+  const metaEnv = (import.meta as any).env || {};
+  const envUrl = sanitizeSupabaseUrl(
+    metaEnv.VITE_SUPABASE_URL ||
+    metaEnv.NEXT_PUBLIC_SUPABASE_URL ||
+    metaEnv.SUPABASE_URL ||
+    ''
+  );
+  const envKey = sanitizeSupabaseKey(
+    metaEnv.VITE_SUPABASE_ANON_KEY ||
+    metaEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    metaEnv.SUPABASE_ANON_KEY ||
+    metaEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    metaEnv.SUPABASE_PUBLISHABLE_KEY ||
+    ''
+  );
 
   const saved = localStorage.getItem(STORAGE_KEY_CONFIG);
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
+      const cleanedUrl = sanitizeSupabaseUrl(parsed.url || envUrl);
+      const cleanedKey = sanitizeSupabaseKey(parsed.anonKey || envKey);
+      // Auto-heal stored config if it was formatted incorrectly
+      if (parsed.url !== cleanedUrl || parsed.anonKey !== cleanedKey) {
+        localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify({ url: cleanedUrl, anonKey: cleanedKey }));
+      }
       return {
-        url: parsed.url || envUrl,
-        anonKey: parsed.anonKey || envKey,
+        url: cleanedUrl,
+        anonKey: cleanedKey,
       };
     } catch {
       // ignore
@@ -34,10 +98,14 @@ export function getSavedSupabaseConfig(): SupabaseSettings {
 }
 
 export function saveSupabaseConfig(config: SupabaseSettings) {
-  localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(config));
-  if (config.url && config.anonKey) {
+  const cleanConfig: SupabaseSettings = {
+    url: sanitizeSupabaseUrl(config.url),
+    anonKey: sanitizeSupabaseKey(config.anonKey),
+  };
+  localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(cleanConfig));
+  if (cleanConfig.url && cleanConfig.anonKey) {
     try {
-      supabaseInstance = createClient(config.url, config.anonKey);
+      supabaseInstance = createClient(cleanConfig.url, cleanConfig.anonKey);
     } catch (err) {
       console.error('Failed to initialize Supabase client:', err);
     }
@@ -455,10 +523,12 @@ export async function savePlanRecord(
     if (error) {
       console.error('Supabase save plan error:', error);
       let friendlyError = error.message;
-      if (error.code === '42P01' || error.message.includes('relation "lesson_plans" does not exist')) {
+      if (error.code === 'PGRST125' || error.message.includes('Invalid path specified in request URL')) {
+        friendlyError = 'Supabase URL ไม่ถูกต้อง (Code: PGRST125) มีการระบุ path ผิด เช่น ใส่ /rest/v1 หรือลิงก์แดชบอร์ดปนอยู่ (ระบบได้ทำการแก้ไข URL ให้แล้ว โปรดลองบันทึกใหม่อีกครั้ง)';
+      } else if (error.code === '42P01' || error.code === 'PGRST205' || error.message.includes('relation "lesson_plans" does not exist') || error.message.includes('Could not find')) {
         friendlyError = 'ยังไม่ได้สร้างตาราง lesson_plans ในฐานข้อมูล Supabase (กรุณาคัดลอก SQL Script ไปกด Run ใน Supabase SQL Editor)';
       } else if (error.code === '23503' || error.message.includes('foreign key')) {
-        friendlyError = `ไม่พบข้อมูลครูรหัส ${plan.teacher_id} ในตาราง teachers ของ Supabase (Foreign Key Error)`;
+        friendlyError = `ไม่พบข้อมูลครูรหัส ${plan.teacher_id} ในตาราง teachers ของ Supabase (Foreign Key Error - โปรดกดปุ่มซิงค์ข้อมูลบุคลากรในหน้าตั้งค่า Supabase)`;
       } else if (error.code === '42501' || error.message.includes('permission denied') || error.message.includes('row-level security')) {
         friendlyError = 'ติดสิทธิ์ความปลอดภัย Row Level Security (RLS) ของ Supabase (กรุณารันคำสั่งสร้าง Policy ตาม SQL Script)';
       }
