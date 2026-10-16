@@ -28,7 +28,6 @@ interface SubmitPlanModalProps {
   onClose: () => void;
   onSubmit: (plan: LessonPlan) => Promise<any>;
   isSupabaseConnected?: boolean;
-  onOpenSupabaseModal?: () => void;
   deadlineConfigs?: PlanTypeDeadlineConfig[];
   initialPlanType?: string;
 }
@@ -53,7 +52,6 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
   onClose,
   onSubmit,
   isSupabaseConnected = false,
-  onOpenSupabaseModal,
   deadlineConfigs,
   initialPlanType,
 }) => {
@@ -223,44 +221,45 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden my-6 animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-2.5 sm:p-4 overflow-y-auto">
+      <div className="w-full max-w-2xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-100 overflow-hidden my-auto sm:my-6 flex flex-col max-h-[94vh] animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="relative bg-gradient-to-r from-blue-700 via-indigo-600 to-sky-600 p-6 text-white">
+        <div className="relative bg-gradient-to-r from-blue-700 via-indigo-600 to-sky-600 p-4 sm:p-6 text-white shrink-0">
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-1.5 rounded-full transition-colors"
+            className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors active:scale-95 cursor-pointer"
+            aria-label="ปิดหน้าต่าง"
           >
             <X className="w-5 h-5" />
           </button>
 
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/25 shadow-inner">
-              <UploadCloud className="w-7 h-7 text-white" />
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/25 shadow-inner shrink-0">
+              <UploadCloud className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
             </div>
-            <div>
-              <span className="text-xs uppercase tracking-wider font-semibold text-blue-200">
+            <div className="min-w-0 pr-8">
+              <span className="text-[11px] sm:text-xs uppercase tracking-wider font-semibold text-blue-200 block truncate">
                 Lesson Plan Submission
               </span>
-              <h2 className="text-xl font-bold">ส่งแผนการจัดการเรียนรู้</h2>
+              <h2 className="text-lg sm:text-xl font-bold truncate">ส่งแผนการจัดการเรียนรู้</h2>
             </div>
           </div>
 
-          <div className="mt-3 flex items-center gap-3 text-xs bg-white/10 backdrop-blur-sm px-3.5 py-2 rounded-xl border border-white/15">
+          <div className="mt-2.5 sm:mt-3 flex items-center gap-2 sm:gap-3 text-xs bg-white/10 backdrop-blur-sm px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl border border-white/15 flex-wrap">
             <span className="font-semibold text-sky-200">ผู้ส่ง:</span>
-            <span>{currentTeacher.Name}</span>
-            <span className="font-mono bg-white/20 px-1.5 py-0.5 rounded">
-              Key: {currentTeacher.Teacher_ID}
+            <span className="font-medium truncate max-w-[150px]">{currentTeacher.Name}</span>
+            <span className="font-mono bg-white/20 px-1.5 py-0.2 rounded text-[10px]">
+              {currentTeacher.Teacher_ID}
             </span>
-            <span>•</span>
-            <span className="text-amber-200">{currentTeacher.Learning_Area}</span>
+            <span className="hidden sm:inline">·</span>
+            <span className="text-amber-200 truncate max-w-[160px]">{currentTeacher.Learning_Area}</span>
           </div>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[72vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 touch-scroll">
           {error && (
-            <div className="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-xl text-sm whitespace-pre-line leading-relaxed">
+            <div className="bg-rose-50 border border-rose-200 text-rose-700 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm whitespace-pre-line leading-relaxed">
               {error}
             </div>
           )}
@@ -508,28 +507,28 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
           </div>
 
           {/* Action buttons */}
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
+          <div className="pt-3 pb-safe border-t border-slate-100 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 shrink-0">
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium text-sm transition-colors"
+              className="w-full sm:w-auto px-5 py-3 sm:py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-sm transition-colors text-center cursor-pointer active:scale-98"
             >
               ยกเลิก
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium text-sm shadow-md shadow-indigo-600/20 flex items-center gap-2 transition-all active:scale-[0.98] disabled:opacity-70"
+              className="w-full sm:w-auto px-6 py-3 sm:py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-bold text-sm shadow-md shadow-orange-500/20 flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-70 cursor-pointer"
             >
               {isSubmitting ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  กำลังส่งแผน...
+                  <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></div>
+                  <span>กำลังส่งแผน...</span>
                 </>
               ) : (
                 <>
                   <FileCheck2 className="w-4 h-4" />
-                  ยืนยันส่งแผนการสอน
+                  <span>ยืนยันส่งแผนการสอน</span>
                 </>
               )}
             </button>

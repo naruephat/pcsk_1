@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   LessonPlan,
   Teacher,
@@ -10,7 +10,6 @@ import { formatGoogleDriveImageUrl, getInitials } from '../utils/imageUtils';
 import {
   getPlanStatusInfo,
   checkSubmissionTimeliness,
-  formatThaiDateTime,
 } from '../utils/deadlineUtils';
 import {
   FileText,
@@ -20,13 +19,8 @@ import {
   ExternalLink,
   Printer,
   UserCheck,
-  Award,
-  MoreVertical,
   Trash2,
-  Calendar,
-  Layers,
   RotateCcw,
-  Tag,
   ShieldCheck,
   Edit,
 } from 'lucide-react';
@@ -72,68 +66,68 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
   const statusInfo = getPlanStatusInfo(plan.status, statusConfigs);
 
   return (
-    <div className={`bg-white rounded-2xl border shadow-xs hover:shadow-md transition-all p-5 flex flex-col justify-between group ${
-      isLate ? 'border-orange-200 hover:border-orange-300' : 'border-slate-200/80 hover:border-indigo-200'
-    }`}>
+    <div
+      className={`bg-white rounded-xl border shadow-2xs hover:shadow-sm transition-all p-4 sm:p-5 flex flex-col justify-between group ${
+        isLate ? 'border-amber-300/80 hover:border-amber-400' : 'border-slate-200/90 hover:border-slate-300'
+      }`}
+    >
       <div>
         {/* Card Header: Subject Code & Status */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
+        <div className="flex items-start justify-between gap-2.5">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-slate-900 text-white shrink-0">
               {plan.subject_code}
             </span>
-            <span className="text-xs font-semibold text-slate-700">
+            <span className="text-xs font-bold text-slate-800 truncate">
               {plan.subject_name}
             </span>
           </div>
 
           {/* Badges Container */}
-          <div className="flex items-center gap-1.5 flex-wrap justify-end">
+          <div className="flex items-center gap-1.5 shrink-0 justify-end">
             {/* LATE SUBMISSION BADGE */}
             {isLate && (
               <span
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-800 border border-orange-300 shadow-2xs"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300"
                 title={`ส่งช้ากว่ากำหนด: ${delayNote}`}
               >
-                <AlertTriangle className="w-3.5 h-3.5 text-orange-600" />
+                <AlertTriangle className="w-3 h-3 text-amber-700" />
                 <span>ส่งช้า</span>
               </span>
             )}
 
-            {/* DYNAMIC STATUS BADGE (Configured by Admin) */}
+            {/* DYNAMIC STATUS BADGE */}
             <span
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${statusInfo.style.badge}`}
+              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold border ${statusInfo.style.badge}`}
               title={statusInfo.id}
             >
-              <span className={`w-2 h-2 rounded-full ${statusInfo.style.dot}`}></span>
+              <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.style.dot}`}></span>
               <span>{statusInfo.label}</span>
               {plan.status === 'approved' && plan.total_score ? (
-                <span className="font-mono text-[11px]">({plan.total_score}%)</span>
+                <span className="font-mono text-[10px]">({plan.total_score}%)</span>
               ) : null}
             </span>
           </div>
         </div>
 
         {/* Title */}
-        <h3 className="mt-3 text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors line-clamp-2 leading-snug">
+        <h3 className="mt-2.5 text-sm sm:text-base font-bold text-slate-900 group-hover:text-amber-600 transition-colors line-clamp-2 leading-snug">
           {plan.plan_title}
         </h3>
 
-        {/* Meta tags */}
-        <div className="mt-2.5 flex items-center gap-2 flex-wrap text-xs text-slate-500">
-          <span className="bg-slate-100 px-2 py-0.5 rounded-md text-slate-600 font-medium">
-            {plan.grade_level}
-          </span>
-          <span>•</span>
+        {/* Metadata (Zero-Pill discipline: unboxed with typographic · separators) */}
+        <div className="mt-2 flex items-center gap-1.5 flex-wrap text-xs text-slate-500">
+          <span>{plan.grade_level}</span>
+          <span aria-hidden="true">·</span>
           <span>เทอม {plan.semester}/{plan.academic_year}</span>
-          <span>•</span>
+          <span aria-hidden="true">·</span>
           <span>{plan.total_hours} ชม.</span>
-          <span>•</span>
-          <span className="text-indigo-600 font-medium">{plan.plan_type}</span>
+          <span aria-hidden="true">·</span>
+          <span className="text-slate-700 font-medium">{plan.plan_type}</span>
         </div>
 
         {/* Teacher details */}
-        <div className="mt-4 pt-3.5 border-t border-slate-100 flex items-center justify-between">
+        <div className="mt-3.5 pt-3 border-t border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 rounded-lg overflow-hidden bg-slate-100 flex items-center justify-center shrink-0 border border-slate-200">
               {photoUrl ? (
@@ -146,17 +140,17 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <span className="text-[11px] font-bold text-indigo-700">
+                <span className="text-[11px] font-bold text-slate-700">
                   {getInitials(plan.teacher_name)}
                 </span>
               )}
             </div>
             <div className="min-w-0">
-              <div className="text-xs font-semibold text-slate-800 truncate">
+              <div className="text-xs font-bold text-slate-900 truncate">
                 {plan.teacher_name}
               </div>
               <div className="text-[11px] text-slate-400 font-mono">
-                รหัส {plan.teacher_id} • {plan.learning_area}
+                {plan.teacher_id} · {plan.learning_area}
               </div>
             </div>
           </div>
@@ -168,13 +162,13 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
 
         {/* Late submission explanation banner */}
         {isLate && (
-          <div className="mt-2.5 px-3 py-1.5 rounded-xl bg-orange-50 border border-orange-200/80 text-[11px] text-orange-950 flex items-center justify-between gap-2">
-            <span className="flex items-center gap-1.5 font-bold">
-              <Clock className="w-3.5 h-3.5 text-orange-600 shrink-0" />
-              <span>ส่งช้ากว่ากำหนด: {delayNote}</span>
+          <div className="mt-2.5 px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200/80 text-[11px] text-amber-900 flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1 font-bold">
+              <Clock className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+              <span>ส่งช้า: {delayNote}</span>
             </span>
             {plan.deadline_at && (
-              <span className="text-orange-800/80 font-mono text-[10px] shrink-0">
+              <span className="text-amber-800/80 font-mono text-[10px] shrink-0">
                 กำหนด: {plan.deadline_at}
               </span>
             )}
@@ -183,45 +177,45 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
 
         {/* Needs revision alert & Resubmit action */}
         {plan.status === 'needs_revision' && (
-          <div className="mt-3 p-3 rounded-2xl bg-amber-50/90 border border-amber-200/90 text-xs space-y-2">
+          <div className="mt-2.5 p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs space-y-1.5">
             <div className="flex items-center justify-between gap-2">
-              <span className="font-bold text-amber-900 flex items-center gap-1.5">
-                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>สถานะ: ส่งกลับแก้ไข</span>
+              <span className="font-bold text-rose-900 flex items-center gap-1">
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                <span>ส่งกลับแก้ไข</span>
               </span>
               {(isAdmin || isOwner) && onResubmitPlan && (
                 <button
                   onClick={() => onResubmitPlan(plan)}
-                  className="px-2.5 py-1 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg font-bold text-xs shadow-xs hover:shadow flex items-center gap-1 transition-all cursor-pointer"
+                  className="px-2 py-0.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 rounded-md font-bold text-[11px] shadow-2xs flex items-center gap-1 transition-all cursor-pointer"
                   title="ส่งแผนที่ปรับปรุงแล้วเพื่อขอรับการตรวจอีกครั้ง"
                 >
                   <RotateCcw className="w-3 h-3" />
-                  <span>ส่งแผนใหม่อีกครั้ง</span>
+                  <span>ส่งใหม่</span>
                 </button>
               )}
             </div>
             {plan.review_comment ? (
-              <div className="text-amber-900 bg-white/85 p-2.5 rounded-xl border border-amber-200/60">
-                <span className="font-semibold text-slate-700 block mb-0.5 text-[11px]">
+              <div className="text-slate-800 bg-white/90 p-2 rounded border border-rose-200/70">
+                <span className="font-bold text-slate-700 block text-[10px]">
                   ข้อเสนอแนะ ({plan.reviewer_name || 'ฝ่ายวิชาการ'}):
                 </span>
-                <p className="line-clamp-2 leading-relaxed">{plan.review_comment}</p>
+                <p className="line-clamp-2 leading-relaxed text-[11px]">{plan.review_comment}</p>
               </div>
             ) : (
-              <p className="text-amber-800 text-[11px]">
-                กรุณาปรับปรุงแผนการจัดการเรียนรู้ และกดปุ่ม &quot;ส่งแผนใหม่อีกครั้ง&quot; เพื่อให้ผู้ดูแลระบบตรวจอีกครั้ง
+              <p className="text-rose-800 text-[11px]">
+                กรุณาปรับปรุงแผนการจัดการเรียนรู้ และกดส่งใหม่อีกครั้ง
               </p>
             )}
           </div>
         )}
 
-        {/* Feedback snippet if approved or submitted with comment */}
+        {/* Feedback snippet if approved or with comment */}
         {plan.status !== 'needs_revision' && plan.review_comment && (
-          <div className="mt-3 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-600">
-            <span className="font-semibold text-slate-700 block mb-0.5">
+          <div className="mt-2.5 p-2 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-600">
+            <span className="font-bold text-slate-700 block mb-0.5 text-[10px]">
               ข้อเสนอแนะ ({plan.reviewer_name || 'ฝ่ายวิชาการ'}):
             </span>
-            <p className="line-clamp-2">{plan.review_comment}</p>
+            <p className="line-clamp-2 text-[11px]">{plan.review_comment}</p>
           </div>
         )}
       </div>
@@ -230,15 +224,14 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
       {isAdmin && onQuickChangeStatus && (
         <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 text-xs">
           <span className="text-slate-500 text-[11px] font-bold flex items-center gap-1 shrink-0">
-            <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
-            <span>ปรับสถานะ (Admin):</span>
+            <ShieldCheck className="w-3.5 h-3.5 text-slate-700" />
+            <span>ปรับสถานะ:</span>
           </span>
           <div className="flex items-center gap-1.5 flex-wrap justify-end">
             <select
               value={plan.status}
               onChange={(e) => onQuickChangeStatus(plan, e.target.value)}
-              className="px-2 py-1 rounded-lg border border-slate-300 text-[11px] font-bold bg-white text-slate-800 shadow-2xs cursor-pointer focus:ring-1 focus:ring-amber-500"
-              title="แอดมินปรับเปลี่ยนสถานะของแผนนี้ทันที"
+              className="px-2 py-1 rounded-md border border-slate-300 text-[11px] font-bold bg-white text-slate-800 shadow-2xs cursor-pointer focus:ring-1 focus:ring-amber-500"
             >
               {(statusConfigs || []).map((sc) => (
                 <option key={sc.id} value={sc.id}>
@@ -250,29 +243,29 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
               <button
                 type="button"
                 onClick={() => onToggleLate(plan)}
-                className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition-colors cursor-pointer ${
+                className={`px-2 py-1 rounded-md text-[10px] font-bold border transition-colors cursor-pointer ${
                   isLate
-                    ? 'bg-orange-100 text-orange-800 border-orange-300 hover:bg-orange-200'
-                    : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                    ? 'bg-amber-100 text-amber-900 border-amber-300'
+                    : 'bg-slate-100 text-slate-600 border-slate-200'
                 }`}
                 title="คลิกเพื่อสลับสถานะส่งช้า / ส่งตรงเวลา"
               >
-                {isLate ? '⚠️ ส่งช้า' : 'ตรงเวลา'}
+                {isLate ? 'ส่งช้า' : 'ตรงเวลา'}
               </button>
             )}
           </div>
         </div>
       )}
 
-      {/* Action Footer */}
-      <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+      {/* Action Footer (Mobile responsive wrap with comfortable touch targets) */}
+      <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
           {/* File link */}
           <a
             href={plan.file_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition-colors"
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-semibold transition-colors"
           >
             <FileText className="w-3.5 h-3.5" />
             <span>ดูไฟล์</span>
@@ -282,7 +275,7 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
           {/* Receipt button */}
           <button
             onClick={() => onOpenReceipt(plan)}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
             title="พิมพ์ใบตอบรับการส่งแผน"
           >
             <Printer className="w-3.5 h-3.5" />
@@ -291,46 +284,46 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
         </div>
 
         <div className="flex items-center gap-1">
-          {/* Resubmit button (for needs_revision plans) */}
+          {/* Resubmit button */}
           {plan.status === 'needs_revision' && (isAdmin || isOwner) && onResubmitPlan && (
             <button
               onClick={() => onResubmitPlan(plan)}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg text-xs font-bold shadow-xs hover:shadow transition-all cursor-pointer"
-              title="ส่งแผนการสอนที่ปรับปรุงแล้วเพื่อขอรับการตรวจอีกครั้ง"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 rounded-lg text-xs font-bold shadow-2xs transition-all cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>ส่งแผนใหม่อีกครั้ง</span>
+              <span>ส่งใหม่</span>
             </button>
           )}
 
-          {/* Edit plan button (for owner or admin) */}
+          {/* Edit plan button */}
           {(isAdmin || isOwner) && onEditPlan && (
             <button
               onClick={() => onEditPlan(plan)}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold transition-colors border border-indigo-200 cursor-pointer"
-              title={isAdmin ? 'แก้ไขข้อมูลแผนการสอน (แอดมิน)' : 'แก้ไขข้อมูลแผนการสอนของฉัน'}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-semibold transition-colors border border-slate-200 cursor-pointer"
+              title="แก้ไขข้อมูลแผน"
             >
-              <span>แก้ไขแผน</span>
+              <Edit className="w-3.5 h-3.5 text-slate-600" />
+              <span>แก้ไข</span>
             </button>
           )}
 
-          {/* Review button (Admin only, supervisor) */}
+          {/* Review button */}
           {canReview && (
             <button
               onClick={() => onOpenReview(plan)}
-              className="inline-flex items-center gap-1 px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg text-xs font-semibold transition-colors border border-purple-200 cursor-pointer"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
             >
-              <UserCheck className="w-3.5 h-3.5" />
-              <span>{plan.status === 'submitted' ? 'ตรวจแผน' : 'แก้ไขผลตรวจ'}</span>
+              <UserCheck className="w-3.5 h-3.5 text-amber-400" />
+              <span>{plan.status === 'submitted' ? 'ตรวจ' : 'ผลตรวจ'}</span>
             </button>
           )}
 
-          {/* Delete (if owner or admin) */}
+          {/* Delete */}
           {(isAdmin || isOwner) && (
             <button
               onClick={() => onDeletePlan(plan.id)}
               className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-              title={isAdmin ? 'ลบรายการส่งแผน (แอดมิน)' : 'ลบรายการส่งแผนของฉัน'}
+              title="ลบรายการ"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>

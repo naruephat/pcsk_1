@@ -57,7 +57,6 @@ interface DeadlineManagerModalProps {
   plans: LessonPlan[];
   onUpdatePlanStatus?: (planId: string, newStatus: string, isLate?: boolean, adminNotes?: string) => Promise<void> | void;
   isSupabaseConnected?: boolean;
-  onOpenSupabaseConfig?: () => void;
 }
 
 const COLOR_OPTIONS: { id: StatusColor; name: string; bg: string }[] = [
@@ -81,7 +80,6 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
   plans,
   onUpdatePlanStatus,
   isSupabaseConnected,
-  onOpenSupabaseConfig,
 }) => {
   const [activeTab, setActiveTab] = useState<'deadlines' | 'statuses' | 'plans'>('deadlines');
 
@@ -402,75 +400,76 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
-      <div className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden my-6 flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-2.5 sm:p-4 overflow-y-auto">
+      <div className="w-full max-w-4xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-100 overflow-hidden my-auto sm:my-6 flex flex-col max-h-[94vh] animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="relative bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 p-6 text-white shrink-0">
+        <div className="relative bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 p-4 sm:p-6 text-white shrink-0">
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors cursor-pointer"
+            className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors cursor-pointer active:scale-95"
+            aria-label="ปิดหน้าต่าง"
           >
             <X className="w-5 h-5" />
           </button>
 
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center shrink-0 shadow-inner">
-              <Calendar className="w-6 h-6 text-white" />
+          <div className="flex items-center gap-3 min-w-0 pr-8">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center shrink-0 shadow-inner">
+              <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
             </div>
-            <div>
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-white/20 backdrop-blur-md text-amber-100 border border-white/20 mb-1">
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-white/20 backdrop-blur-md text-amber-100 border border-white/20 mb-1">
                 <ShieldCheck className="w-3.5 h-3.5 text-amber-200" />
-                แผงควบคุมผู้ดูแลระบบ (Admin Control Center)
+                <span>Admin Control</span>
               </div>
-              <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-                กำหนดช่วงเวลาและวันส่งงาน & จัดการสถานะทั้งหมด
+              <h2 className="text-base sm:text-xl font-bold tracking-tight text-white truncate">
+                กำหนดช่วงเวลาส่ง & จัดการสถานะ
               </h2>
-              <p className="text-xs text-amber-100/90 mt-0.5">
-                กำหนดเวลาส่งของแต่ละประเภทเอกสาร ควบคุมการแจ้งเตือนส่งช้า และปรับแต่งชื่อ/สีสถานะทั้งหมดในระบบได้อย่างอิสระ
+              <p className="text-[11px] sm:text-xs text-amber-100/90 mt-0.5 line-clamp-1">
+                กำหนดเวลาส่งของแต่ละประเภทเอกสาร และปรับแต่งสถานะทั้งหมดในระบบ
               </p>
             </div>
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex items-center gap-2 mt-5 border-t border-white/20 pt-3 overflow-x-auto">
+          <div className="flex items-center gap-1.5 sm:gap-2 mt-3 sm:mt-5 border-t border-white/20 pt-2.5 sm:pt-3 overflow-x-auto touch-scroll max-w-full">
             <button
               onClick={() => setActiveTab('deadlines')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+              className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 sm:gap-2 shrink-0 cursor-pointer ${
                 activeTab === 'deadlines'
-                  ? 'bg-white text-slate-900 shadow-md scale-102'
+                  ? 'bg-white text-slate-900 shadow-md'
                   : 'bg-white/15 text-white hover:bg-white/25'
               }`}
             >
               <Calendar className="w-3.5 h-3.5" />
-              <span>1. กำหนดช่วงเวลาและวันส่ง ({deadlines.length} ประเภท)</span>
+              <span>1. กำหนดช่วงเวลาส่ง ({deadlines.length})</span>
             </button>
             <button
               onClick={() => setActiveTab('statuses')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+              className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 sm:gap-2 shrink-0 cursor-pointer ${
                 activeTab === 'statuses'
-                  ? 'bg-white text-slate-900 shadow-md scale-102'
+                  ? 'bg-white text-slate-900 shadow-md'
                   : 'bg-white/15 text-white hover:bg-white/25'
               }`}
             >
               <Tag className="w-3.5 h-3.5" />
-              <span>2. จัดการสถานะทั้งหมด ({statuses.length} สถานะ)</span>
+              <span>2. สถานะทั้งหมด ({statuses.length})</span>
             </button>
             <button
               onClick={() => setActiveTab('plans')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+              className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 sm:gap-2 shrink-0 cursor-pointer ${
                 activeTab === 'plans'
-                  ? 'bg-white text-slate-900 shadow-md scale-102'
+                  ? 'bg-white text-slate-900 shadow-md'
                   : 'bg-white/15 text-white hover:bg-white/25'
               }`}
             >
               <Layers className="w-3.5 h-3.5" />
-              <span>3. ปรับสถานะแผนรายบุคคล ({plans.length} แผน)</span>
+              <span>3. ปรับสถานะแผน ({plans.length})</span>
             </button>
           </div>
         </div>
 
         {/* Modal Body */}
-        <div className="p-5 sm:p-6 overflow-y-auto flex-1 space-y-6 bg-slate-50/50">
+        <div className="p-3.5 sm:p-6 overflow-y-auto flex-1 space-y-4 sm:space-y-6 bg-slate-50/50 touch-scroll">
           {/* Storage & Cloud Database Status Card (ซ่อนตามคำขอของผู้ใช้ โดยสามารถคลิกเปิดดูได้) */}
           {showCloudCard ? (
             <div
@@ -574,16 +573,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                     </button>
                   )}
 
-                  {onOpenSupabaseConfig && !isSupabaseConnected && (
-                    <button
-                      type="button"
-                      onClick={onOpenSupabaseConfig}
-                      className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer transition-colors"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      <span>ตั้งค่า Database กลาง</span>
-                    </button>
-                  )}
+
                   <button
                     type="button"
                     onClick={handleCopySettingsJson}

@@ -3,16 +3,13 @@ import { Teacher, LessonPlan, PlanTypeDeadlineConfig, PlanStatusConfig } from '.
 import {
   constructDateTime,
   formatThaiDateTime,
-  formatDeadlineRange,
   getPlanStatusInfo,
-  getStatusStyle,
 } from '../utils/deadlineUtils';
 import {
   Bell,
   Clock,
   Calendar,
   CheckCircle2,
-  AlertTriangle,
   AlertCircle,
   FileText,
   UploadCloud,
@@ -20,12 +17,10 @@ import {
   ChevronUp,
   ExternalLink,
   Receipt,
-  Sparkles,
   Info,
   ArrowRight,
   ShieldAlert,
   Flame,
-  Check,
 } from 'lucide-react';
 
 interface TeacherAssignmentNotificationProps {
@@ -48,7 +43,7 @@ export interface AssignmentItem {
   minutesRemaining: number;
   isOverdue: boolean;
   isDueToday: boolean;
-  isUrgent: boolean; // <= 3 days
+  isUrgent: boolean;
   hasStarted: boolean;
   daysUntilStart: number;
   deadlineDate: Date;
@@ -158,81 +153,77 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
   return (
     <div
       id="assigned-documents-section"
-      className="bg-white rounded-3xl border border-slate-200/90 shadow-md shadow-slate-200/50 overflow-hidden transition-all duration-200"
+      className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden transition-all duration-200"
     >
-      {/* Top Header Card */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 text-white p-5 sm:p-6 relative overflow-hidden">
-        {/* Glow Effects */}
-        <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="absolute -bottom-10 -left-10 w-60 h-60 bg-blue-500/15 rounded-full blur-2xl pointer-events-none"></div>
-
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-start gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-400 to-orange-500 text-slate-950 flex items-center justify-center shrink-0 shadow-lg shadow-orange-500/20">
-              <Bell className="w-6 h-6 text-slate-950 animate-pulse" />
+      {/* Top Header Card (Style 4: Midnight Navy with Amber Highlights) */}
+      <div className="bg-[#0B1329] text-white p-4 sm:p-6 border-b border-slate-800">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3 sm:gap-3.5">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0">
+              <Bell className="w-5 h-5 text-amber-400" />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-400 text-slate-950">
-                  แจ้งเตือนภาระงานที่ Admin มอบหมาย
+                <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                  ภาระงานที่ Admin มอบหมาย
                 </span>
                 {pendingCount > 0 ? (
-                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-500 text-white flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+                  <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
                     รอส่ง {pendingCount} รายการ
                   </span>
                 ) : (
-                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500 text-white flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" />
+                  <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
                     ส่งครบแล้วทุกรายการ 🎉
                   </span>
                 )}
               </div>
-              <h3 className="text-lg sm:text-xl font-bold tracking-tight text-white mt-1">
-                ภาระงานเอกสารที่ฝ่ายวิชาการ/Admin กำหนดให้ส่ง
+              <h3 className="text-base sm:text-lg font-bold tracking-tight text-white mt-1">
+                รายการเอกสารที่ต้องจัดส่ง (ภาระงานครู)
               </h3>
-              <p className="text-xs sm:text-sm text-slate-300 mt-0.5">
-                ตรวจสอบรายการเอกสารที่ต้องส่ง วันเวลาที่เหลือจนถึงกำหนด และสถานะการส่งของท่าน
+              <p className="text-xs text-slate-400 mt-0.5">
+                ตรวจสอบวันเวลาคงเหลือและสถานะการส่งเอกสารของท่าน
               </p>
             </div>
           </div>
 
-          {/* Quick Metrics & Collapse Toggle */}
-          <div className="flex items-center gap-2 sm:gap-3 self-end md:self-center shrink-0">
-            <div className="flex items-center bg-white/10 backdrop-blur-md rounded-2xl p-1.5 border border-white/15 text-xs font-semibold">
+          {/* Quick Filter Segmented Control & Collapse Toggle */}
+          <div className="flex items-center gap-2 justify-between sm:justify-end shrink-0">
+            <div className="flex items-center bg-slate-800/80 rounded-xl p-1 border border-slate-700/80 text-xs font-semibold overflow-x-auto">
               <button
                 onClick={() => setFilter('all')}
-                className={`px-3 py-1.5 rounded-xl transition-all ${
+                className={`px-3 py-1.5 rounded-lg transition-all whitespace-nowrap ${
                   filter === 'all'
-                    ? 'bg-white text-slate-900 shadow-sm font-bold'
-                    : 'text-white/80 hover:text-white'
+                    ? 'bg-white text-slate-900 shadow-xs font-bold'
+                    : 'text-slate-300 hover:text-white'
                 }`}
               >
                 ทั้งหมด ({totalAssigned})
               </button>
               <button
                 onClick={() => setFilter('pending')}
-                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1 ${
+                className={`px-3 py-1.5 rounded-lg transition-all whitespace-nowrap flex items-center gap-1 ${
                   filter === 'pending'
-                    ? 'bg-amber-400 text-slate-950 shadow-sm font-bold'
+                    ? 'bg-amber-500 text-slate-950 shadow-xs font-bold'
                     : 'text-amber-300 hover:text-white'
                 }`}
               >
                 <span>ยังไม่ได้ส่ง</span>
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-500/30 text-amber-100">
+                <span className="px-1 py-0.2 rounded text-[10px] bg-slate-900/60 text-amber-200">
                   {pendingCount}
                 </span>
               </button>
               <button
                 onClick={() => setFilter('submitted')}
-                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1 ${
+                className={`px-3 py-1.5 rounded-lg transition-all whitespace-nowrap flex items-center gap-1 ${
                   filter === 'submitted'
-                    ? 'bg-emerald-400 text-slate-950 shadow-sm font-bold'
+                    ? 'bg-emerald-500 text-slate-950 shadow-xs font-bold'
                     : 'text-emerald-300 hover:text-white'
                 }`}
               >
                 <span>ส่งแล้ว</span>
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-500/30 text-emerald-100">
+                <span className="px-1 py-0.2 rounded text-[10px] bg-slate-900/60 text-emerald-200">
                   {submittedCount}
                 </span>
               </button>
@@ -240,45 +231,45 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
 
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}
-              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors border border-white/15"
+              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors border border-slate-700 shrink-0"
               title={isCollapsed ? 'ขยายรายการ' : 'ย่อรายการ'}
             >
-              {isCollapsed ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
+              {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
             </button>
           </div>
         </div>
 
-        {/* Urgent Warning Strip inside Header if there are urgent or overdue unsubmitted plans */}
+        {/* Warning strip if urgent or overdue */}
         {!isCollapsed && overdueUnsubmittedCount > 0 && (
-          <div className="mt-4 p-3 rounded-2xl bg-rose-500/20 border border-rose-500/40 backdrop-blur-md flex items-center justify-between gap-3 text-xs text-rose-200">
+          <div className="mt-3.5 p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-between gap-3 text-xs text-rose-200">
             <div className="flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
               <span>
-                <strong>แจ้งเตือนด่วน:</strong> มีเอกสาร {overdueUnsubmittedCount} รายการที่เลยกำหนดส่งแล้ว กรุณาจัดส่งทันที (หากระบบเปิดให้อนุญาตส่งล่าช้า)
+                <strong>แจ้งเตือน:</strong> มีเอกสาร {overdueUnsubmittedCount} รายการที่เลยกำหนดส่งแล้ว กรุณาจัดส่งทันที
               </span>
             </div>
             <button
               onClick={() => setFilter('pending')}
               className="px-2.5 py-1 bg-rose-500 hover:bg-rose-600 text-white rounded-lg font-bold text-[11px] shrink-0 transition-colors"
             >
-              ดูรายการที่ยังไม่ส่ง
+              ดูรายการ
             </button>
           </div>
         )}
 
         {!isCollapsed && overdueUnsubmittedCount === 0 && urgentUnsubmittedCount > 0 && (
-          <div className="mt-4 p-3 rounded-2xl bg-amber-500/20 border border-amber-500/40 backdrop-blur-md flex items-center justify-between gap-3 text-xs text-amber-200">
+          <div className="mt-3.5 p-3 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-between gap-3 text-xs text-amber-200">
             <div className="flex items-center gap-2">
               <Flame className="w-4 h-4 text-amber-400 shrink-0" />
               <span>
-                <strong>ใกล้ครบกำหนดส่ง:</strong> มีเอกสาร {urgentUnsubmittedCount} รายการ ที่เหลือเวลาส่งอีกไม่เกิน 3 วัน
+                <strong>ใกล้ครบกำหนด:</strong> มีเอกสาร {urgentUnsubmittedCount} รายการ ที่เหลือเวลาส่งอีกไม่เกิน 3 วัน
               </span>
             </div>
             <button
               onClick={() => setFilter('pending')}
               className="px-2.5 py-1 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-lg font-bold text-[11px] shrink-0 transition-colors"
             >
-              รีบส่งเอกสาร
+              รีบส่ง
             </button>
           </div>
         )}
@@ -286,60 +277,40 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
 
       {/* Main Content Area */}
       {!isCollapsed && (
-        <div className="p-5 sm:p-6 space-y-4 bg-slate-50/60">
-          {/* Quick Summary Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold text-sm shrink-0">
-                <FileText className="w-5 h-5 text-indigo-600" />
-              </div>
-              <div>
-                <div className="text-xs text-slate-500 font-medium">มอบหมายทั้งหมด</div>
-                <div className="text-lg font-extrabold text-slate-800">
-                  {totalAssigned} <span className="text-xs font-normal text-slate-400">รายการ</span>
-                </div>
+        <div className="p-4 sm:p-6 space-y-4 bg-slate-50/70">
+          {/* Quick Summary Grid: Compact 2x2 on mobile, 4-col on desktop */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+            <div className="bg-white p-3 sm:p-3.5 rounded-xl border border-slate-200 shadow-2xs">
+              <div className="text-[11px] text-slate-500 font-medium">มอบหมายทั้งหมด</div>
+              <div className="text-base sm:text-xl font-bold text-slate-900 mt-0.5 tabular-nums">
+                {totalAssigned} <span className="text-xs font-normal text-slate-400">รายการ</span>
               </div>
             </div>
 
-            <div className="bg-white p-3.5 rounded-2xl border border-emerald-200/80 shadow-xs flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-sm shrink-0">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-              </div>
-              <div>
-                <div className="text-xs text-emerald-700 font-medium">ส่งแล้ว (เสร็จสิ้น)</div>
-                <div className="text-lg font-extrabold text-emerald-800">
-                  {submittedCount} <span className="text-xs font-normal text-emerald-600">รายการ</span>
-                </div>
+            <div className="bg-white p-3 sm:p-3.5 rounded-xl border border-emerald-200 shadow-2xs">
+              <div className="text-[11px] text-emerald-700 font-medium">ส่งแล้ว (เสร็จสิ้น)</div>
+              <div className="text-base sm:text-xl font-bold text-emerald-700 mt-0.5 tabular-nums">
+                {submittedCount} <span className="text-xs font-normal text-emerald-600">รายการ</span>
               </div>
             </div>
 
-            <div className="bg-white p-3.5 rounded-2xl border border-amber-200/80 shadow-xs flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold text-sm shrink-0">
-                <Clock className="w-5 h-5 text-amber-600" />
-              </div>
-              <div>
-                <div className="text-xs text-amber-700 font-medium">ยังไม่ได้ส่ง</div>
-                <div className="text-lg font-extrabold text-amber-800">
-                  {pendingCount} <span className="text-xs font-normal text-amber-600">รายการ</span>
-                </div>
+            <div className="bg-white p-3 sm:p-3.5 rounded-xl border border-amber-200 shadow-2xs">
+              <div className="text-[11px] text-amber-700 font-medium">ยังไม่ได้ส่ง</div>
+              <div className="text-base sm:text-xl font-bold text-amber-700 mt-0.5 tabular-nums">
+                {pendingCount} <span className="text-xs font-normal text-amber-600">รายการ</span>
               </div>
             </div>
 
-            <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-700 flex items-center justify-center font-bold text-sm shrink-0">
-                <Calendar className="w-5 h-5 text-sky-600" />
-              </div>
-              <div>
-                <div className="text-xs text-slate-500 font-medium">ความคืบหน้าของท่าน</div>
-                <div className="text-lg font-extrabold text-slate-800">
-                  {totalAssigned > 0 ? Math.round((submittedCount / totalAssigned) * 100) : 0}%
-                </div>
+            <div className="bg-white p-3 sm:p-3.5 rounded-xl border border-slate-200 shadow-2xs">
+              <div className="text-[11px] text-slate-500 font-medium">ความคืบหน้า</div>
+              <div className="text-base sm:text-xl font-bold text-slate-900 mt-0.5 tabular-nums">
+                {totalAssigned > 0 ? Math.round((submittedCount / totalAssigned) * 100) : 0}%
               </div>
             </div>
           </div>
 
-          {/* Cards List */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Cards List: 1-col on mobile, 2-col on desktop */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
             {filteredAssignments.map((item) => {
               const {
                 config,
@@ -364,119 +335,117 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
               return (
                 <div
                   key={config.id}
-                  className={`bg-white rounded-2xl p-5 border transition-all duration-200 relative flex flex-col justify-between ${
+                  className={`bg-white rounded-xl p-4 sm:p-5 border transition-all flex flex-col justify-between ${
                     isSubmitted
-                      ? 'border-emerald-200 shadow-xs hover:border-emerald-300'
+                      ? 'border-emerald-200 shadow-2xs'
                       : isOverdue
-                      ? 'border-rose-300 shadow-sm hover:border-rose-400 bg-gradient-to-b from-white to-rose-50/20'
+                      ? 'border-rose-300 shadow-xs bg-rose-50/10'
                       : isUrgent
-                      ? 'border-amber-300 shadow-sm hover:border-amber-400 bg-gradient-to-b from-white to-amber-50/20'
-                      : 'border-slate-200 hover:border-indigo-200 shadow-xs'
+                      ? 'border-amber-300 shadow-xs bg-amber-50/10'
+                      : 'border-slate-200 hover:border-slate-300 shadow-2xs'
                   }`}
                 >
                   <div>
-                    {/* Header line of card: Document title & submission status badge */}
-                    <div className="flex items-start justify-between gap-3 mb-2.5">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="p-1.5 rounded-lg bg-indigo-50 text-indigo-700">
+                    {/* Header line: Title & status */}
+                    <div className="flex items-start justify-between gap-2.5 mb-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="p-1.5 rounded-lg bg-slate-100 text-slate-700 shrink-0">
                           <FileText className="w-4 h-4" />
                         </span>
-                        <h4 className="font-bold text-slate-900 text-sm sm:text-base leading-snug">
+                        <h4 className="font-bold text-slate-900 text-sm leading-snug truncate">
                           {config.name}
                         </h4>
                       </div>
 
-                      {/* Prominent status badge: ส่งแล้ว vs ยังไม่ได้ส่ง */}
+                      {/* Prominent badge: ส่งแล้ว vs ยังไม่ได้ส่ง */}
                       {isSubmitted ? (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                           <span>ส่งแล้ว</span>
                           {userSubCount > 1 && (
-                            <span className="text-[10px] bg-emerald-200 text-emerald-900 px-1.5 py-0.2 rounded-full font-extrabold">
-                              {userSubCount} ฉบับ
+                            <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1 rounded font-extrabold">
+                              {userSubCount}
                             </span>
                           )}
                         </span>
                       ) : isOverdue ? (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300 shrink-0">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 shrink-0">
                           <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
-                          <span>ยังไม่ได้ส่ง (เลยกำหนด)</span>
+                          <span>เลยกำหนด</span>
                         </span>
                       ) : isDueToday ? (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 shrink-0 animate-pulse">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300 shrink-0">
                           <Flame className="w-3.5 h-3.5 text-amber-600" />
                           <span>ครบกำหนดวันนี้</span>
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-300 shrink-0">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200 shrink-0">
                           <Clock className="w-3.5 h-3.5 text-slate-500" />
-                          <span>ยังไม่ได้ส่ง</span>
+                          <span>ยังไม่ส่ง</span>
                         </span>
                       )}
                     </div>
 
-                    {/* Term & Description */}
-                    <div className="flex items-center gap-2 text-xs text-slate-500 mb-2">
-                      <span className="bg-slate-100 px-2 py-0.5 rounded-md font-medium text-slate-700">
-                        ภาคเรียนที่ {config.semester}/{config.academic_year}
-                      </span>
+                    {/* Metadata line (Zero-Pill discipline: unboxed text with · separators) */}
+                    <div className="flex items-center gap-2 text-xs text-slate-500 mb-2.5 flex-wrap">
+                      <span>ภาคเรียนที่ {config.semester}/{config.academic_year}</span>
                       {config.allow_late && (
-                        <span className="text-[11px] text-slate-500 font-medium">
-                          • อนุญาตส่งล่าช้าได้
-                        </span>
+                        <>
+                          <span aria-hidden="true">·</span>
+                          <span className="text-slate-500">อนุญาตส่งล่าช้าได้</span>
+                        </>
                       )}
                     </div>
 
                     {config.description && (
-                      <p className="text-xs text-slate-600 mb-3 line-clamp-2 leading-relaxed">
+                      <p className="text-xs text-slate-600 mb-2.5 line-clamp-2 leading-relaxed">
                         {config.description}
                       </p>
                     )}
 
                     {config.notes && (
-                      <div className="p-2 rounded-xl bg-amber-50/80 border border-amber-200/60 text-[11px] text-amber-900 mb-3 flex items-start gap-1.5">
+                      <div className="p-2 rounded-lg bg-amber-50 border border-amber-200/80 text-[11px] text-amber-900 mb-3 flex items-start gap-1.5">
                         <Info className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
                         <div>
-                          <strong>คำชี้แจงจาก Admin:</strong> {config.notes}
+                          <strong>คำชี้แจง:</strong> {config.notes}
                         </div>
                       </div>
                     )}
 
                     {/* Deadline and Countdown box */}
-                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2 mb-3">
-                      <div className="flex items-center justify-between text-xs">
+                    <div className="p-2.5 sm:p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-1.5 mb-3 text-xs">
+                      <div className="flex items-center justify-between">
                         <span className="text-slate-500 flex items-center gap-1 font-medium">
-                          <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                          <Calendar className="w-3.5 h-3.5 text-slate-600" />
                           กำหนดส่ง:
                         </span>
                         <span className="font-bold text-slate-800">{deadlineFormatted}</span>
                       </div>
 
-                      {/* Remaining Days Countdown */}
-                      <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200/60">
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
                         <span className="text-slate-500 flex items-center gap-1 font-medium">
-                          <Clock className="w-3.5 h-3.5 text-indigo-600" />
+                          <Clock className="w-3.5 h-3.5 text-slate-600" />
                           เวลาคงเหลือ:
                         </span>
                         <div>
                           {!hasStarted ? (
-                            <span className="font-bold text-slate-600 bg-slate-200/70 px-2 py-0.5 rounded-md">
-                              ยังไม่เปิดรับส่ง (เริ่มในอีก {daysUntilStart} วัน)
+                            <span className="font-bold text-slate-600 bg-slate-200 px-2 py-0.5 rounded">
+                              เปิดรับในอีก {daysUntilStart} วัน
                             </span>
                           ) : isOverdue ? (
-                            <span className="font-bold text-rose-700 bg-rose-100 px-2.5 py-0.5 rounded-md">
-                              เลยกำหนดส่งแล้ว {daysRemaining > 0 ? `${daysRemaining} วัน` : ''} {hoursRemaining > 0 ? `${hoursRemaining} ชม.` : ''}
+                            <span className="font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded">
+                              เลยกำหนดแล้ว {daysRemaining > 0 ? `${daysRemaining} วัน` : ''} {hoursRemaining > 0 ? `${hoursRemaining} ชม.` : ''}
                             </span>
                           ) : isDueToday ? (
-                            <span className="font-bold text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-md">
-                              ⚠️ เหลืออีก {hoursRemaining} ชั่วโมง {minutesRemaining} นาที
+                            <span className="font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
+                              เหลืออีก {hoursRemaining} ชม. {minutesRemaining} น.
                             </span>
                           ) : isUrgent ? (
-                            <span className="font-bold text-orange-800 bg-orange-100 px-2.5 py-0.5 rounded-md">
-                              ⏳ เหลืออีก {daysRemaining} วัน {hoursRemaining > 0 ? `${hoursRemaining} ชม.` : ''}
+                            <span className="font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
+                              เหลืออีก {daysRemaining} วัน {hoursRemaining > 0 ? `${hoursRemaining} ชม.` : ''}
                             </span>
                           ) : (
-                            <span className="font-bold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-md">
+                            <span className="font-bold text-slate-800 bg-slate-200/80 px-2 py-0.5 rounded">
                               เหลืออีก {daysRemaining} วัน
                             </span>
                           )}
@@ -484,24 +453,24 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
                       </div>
                     </div>
 
-                    {/* Details if SUBMITTED */}
+                    {/* If SUBMITTED: details snippet */}
                     {isSubmitted && submittedPlan && (
-                      <div className="p-3 rounded-xl bg-emerald-50/80 border border-emerald-200 space-y-2 mb-3">
-                        <div className="flex items-center justify-between text-xs">
+                      <div className="p-2.5 rounded-lg bg-emerald-50/80 border border-emerald-200 space-y-1.5 mb-3 text-xs">
+                        <div className="flex items-center justify-between">
                           <span className="text-emerald-800 font-semibold flex items-center gap-1">
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            ข้อมูลเอกสารที่ส่งแล้ว:
+                            ข้อมูลเอกสารที่ส่ง:
                           </span>
                           {planStatusInfo && (
                             <span
-                              className={`text-[11px] px-2 py-0.5 rounded-md font-bold border ${planStatusInfo.style.badge}`}
+                              className={`text-[11px] px-2 py-0.5 rounded font-bold border ${planStatusInfo.style.badge}`}
                             >
                               {planStatusInfo.label}
                             </span>
                           )}
                         </div>
 
-                        <div className="text-xs text-slate-800 font-medium">
+                        <div className="text-slate-800 font-medium truncate">
                           <span className="text-slate-500">วิชา:</span>{' '}
                           {submittedPlan.subject_code ? `[${submittedPlan.subject_code}] ` : ''}
                           {submittedPlan.plan_title || submittedPlan.subject_name}
@@ -512,39 +481,39 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
                           <span
                             className={
                               submittedPlan.is_late
-                                ? 'text-orange-700 font-bold'
+                                ? 'text-amber-700 font-bold'
                                 : 'text-emerald-700 font-bold'
                             }
                           >
-                            {submittedPlan.is_late ? '⚠️ ส่งล่าช้า' : '✓ ตรงเวลา'}
+                            {submittedPlan.is_late ? 'ส่งล่าช้า' : 'ตรงเวลา'}
                           </span>
                         </div>
                       </div>
                     )}
                   </div>
 
-                  {/* Actions Bar */}
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 mt-2">
+                  {/* Actions Bar (Mobile Touch targets >= 44px) */}
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 mt-1">
                     {isSubmitted ? (
-                      <div className="flex items-center gap-2 w-full justify-between">
+                      <div className="flex items-center gap-2 w-full justify-between flex-wrap">
                         <div className="flex items-center gap-1.5">
                           {submittedPlan?.file_url && (
                             <a
                               href={submittedPlan.file_url}
                               target="_blank"
                               rel="noreferrer"
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-emerald-100 hover:bg-emerald-200 text-emerald-800 transition-colors"
+                              className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition-colors"
                               title="เปิดดูไฟล์ที่ส่ง"
                             >
                               <ExternalLink className="w-3.5 h-3.5" />
-                              <span>ดูไฟล์ PDF</span>
+                              <span>ดู PDF</span>
                             </a>
                           )}
 
                           {onOpenReceipt && submittedPlan && (
                             <button
                               onClick={() => onOpenReceipt(submittedPlan)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+                              className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
                               title="พิมพ์/ดูใบตอบรับ"
                             >
                               <Receipt className="w-3.5 h-3.5" />
@@ -553,10 +522,9 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
                           )}
                         </div>
 
-                        {/* Can submit additional or revised copy */}
                         <button
                           onClick={() => onOpenSubmitForType(config.name)}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold text-indigo-700 hover:text-indigo-900 hover:bg-indigo-50 transition-colors"
+                          className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold text-slate-800 hover:bg-slate-100 transition-colors"
                           title="ส่งฉบับปรับปรุงหรือส่งเพิ่มเติม"
                         >
                           <UploadCloud className="w-3.5 h-3.5" />
@@ -566,17 +534,11 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
                     ) : (
                       <button
                         onClick={() => onOpenSubmitForType(config.name)}
-                        className={`w-full py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${
-                          isOverdue
-                            ? 'bg-gradient-to-r from-rose-600 to-orange-600 hover:from-rose-700 hover:to-orange-700 text-white shadow-rose-600/20'
-                            : isUrgent
-                            ? 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-amber-500/20'
-                            : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-indigo-600/20'
-                        }`}
+                        className="w-full py-2.5 sm:py-3 px-4 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 shadow-sm shadow-orange-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
                       >
-                        <UploadCloud className="w-4 h-4" />
-                        <span>ส่งเอกสารนี้ทันที ({config.name})</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
+                        <UploadCloud className="w-4 h-4 text-slate-950" />
+                        <span>ส่งเอกสารนี้ ({config.name})</span>
+                        <ArrowRight className="w-3.5 h-3.5 text-slate-950" />
                       </button>
                     )}
                   </div>
@@ -586,19 +548,13 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
           </div>
 
           {filteredAssignments.length === 0 && (
-            <div className="text-center py-8 bg-white rounded-2xl border border-slate-200">
-              <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
-              <p className="text-sm font-bold text-slate-800">
+            <div className="text-center py-6 bg-white rounded-xl border border-slate-200">
+              <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-1.5" />
+              <p className="text-xs sm:text-sm font-bold text-slate-800">
                 {filter === 'pending'
-                  ? 'ไม่มีรายการที่ค้างส่ง ท่านส่งเอกสารครบแล้วทุกรายการ!'
+                  ? 'ไม่มีรายการที่ค้างส่ง ท่านส่งเอกสารครบทุกรายการแล้ว!'
                   : 'ไม่พบรายการเอกสารในตัวกรองนี้'}
               </p>
-              <button
-                onClick={() => setFilter('all')}
-                className="mt-2 text-xs text-indigo-600 font-bold hover:underline"
-              >
-                ดูรายการเอกสารทั้งหมด
-              </button>
             </div>
           )}
         </div>

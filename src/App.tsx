@@ -51,6 +51,9 @@ import { ResubmitPlanModal } from './components/ResubmitPlanModal';
 import { LoadingScreen } from './components/LoadingScreen';
 import { DeadlineManagerModal } from './components/DeadlineManagerModal';
 import { TeacherAssignmentNotification } from './components/TeacherAssignmentNotification';
+import { Sidebar } from './components/Sidebar';
+import { LessonPlanTableRow } from './components/LessonPlanTableRow';
+import { DeadlineCountdownBanner } from './components/DeadlineCountdownBanner';
 import {
   Search,
   Filter,
@@ -69,6 +72,16 @@ import {
   Calendar,
   BarChart3,
   FileText,
+  Bell,
+  Users,
+  User,
+  Table as TableIcon,
+  Menu,
+  X,
+  ArrowRight,
+  Clock,
+  ChevronRight,
+  Upload,
 } from 'lucide-react';
 
 export default function App() {
@@ -81,6 +94,8 @@ export default function App() {
   // Filters & Views
   const [viewTab, setViewTab] = useState<'all' | 'my' | 'pending_review' | 'approved' | 'needs_revision'>('all');
   const [mainView, setMainView] = useState<'plans' | 'executive'>('plans');
+  const [planDisplayMode, setPlanDisplayMode] = useState<'board' | 'table'>('board');
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [areaFilter, setAreaFilter] = useState<string>('');
@@ -626,7 +641,6 @@ export default function App() {
           teachers={teachers}
           isSupabaseConnected={isSupabaseConnected}
           onLogin={handleSetCurrentUser}
-          onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
           onShowLoadingDemo={() => {
             setIsLoading(true);
             setTimeout(() => setIsLoading(false), 2200);
@@ -642,219 +656,342 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-['Prompt',sans-serif]">
-      {/* Navigation Bar */}
-      <Navbar
-        currentTeacher={currentTeacher}
-        isSupabaseConnected={isSupabaseConnected}
-        onOpenSubmitModal={() => {
-          setSubmitModalInitialType(undefined);
-          setIsSubmitModalOpen(true);
-        }}
-        pendingAssignmentsCount={pendingAssignmentsCount}
-        onScrollToAssignments={handleScrollToAssignments}
-        onOpenProfileModal={() => {
-          setTeacherToEdit(currentTeacher);
-          setIsProfileModalOpen(true);
-        }}
-        onOpenDirectoryModal={() => setIsDirectoryModalOpen(true)}
-        onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
-        onOpenFileStorageModal={() => setIsFileStorageModalOpen(true)}
-        onOpenAdminTrackerModal={() => setIsAdminTrackerModalOpen(true)}
-        onOpenDeadlineManager={() => setIsDeadlineModalOpen(true)}
-        onOpenExecutiveDashboard={() => setMainView('executive')}
-        onLogout={handleLogout}
-        lastSyncTime={lastSyncTime}
-        isSyncing={isSyncing}
-        onManualSync={() => syncWithDatabase(false)}
-      />
+    <div className="min-h-screen bg-slate-50 flex font-['Prompt',sans-serif]">
+      {/* 1. Desktop Left Sidebar: สีกรมท่าเข้ม (#0B1329) เมนูคมชัด */}
+      <aside className="hidden md:flex flex-col w-64 lg:w-72 shrink-0 h-screen sticky top-0 bg-[#0B1329] border-r border-slate-800 z-30 select-none">
+        <Sidebar
+          currentTeacher={currentTeacher}
+          isAdmin={isAdmin}
+          mainView={mainView}
+          setMainView={setMainView}
+          viewTab={viewTab}
+          setViewTab={setViewTab}
+          pendingAssignmentsCount={pendingAssignmentsCount}
+          totalPlansCount={plans.length}
+          myPlansCount={plans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID).length}
+          isMobileOpen={false}
+          onCloseMobile={() => {}}
+          onOpenSubmitModal={() => {
+            setSubmitModalInitialType(undefined);
+            setIsSubmitModalOpen(true);
+          }}
+          onOpenProfileModal={() => {
+            setTeacherToEdit(currentTeacher);
+            setIsProfileModalOpen(true);
+          }}
+          onOpenDirectoryModal={() => setIsDirectoryModalOpen(true)}
+          onOpenAdminTrackerModal={() => setIsAdminTrackerModalOpen(true)}
+          onOpenDeadlineManager={() => setIsDeadlineModalOpen(true)}
+          onScrollToAssignments={handleScrollToAssignments}
+          onLogout={handleLogout}
+          lastSyncTime={lastSyncTime}
+          isSyncing={isSyncing}
+          onManualSync={() => syncWithDatabase(false)}
+        />
+      </aside>
 
-      {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-8">
-        {/* Toast / Status Notice */}
-        {toastNotice && (
+      {/* 2. Mobile Drawer (Slide-over): สีกรมท่าเข้ม (#0B1329) */}
+      {isMobileSidebarOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex">
           <div
-            className={`p-4 rounded-2xl border shadow-sm flex items-start justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-200 ${
-              toastNotice.type === 'success'
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                : toastNotice.type === 'warning'
-                ? 'bg-amber-50 border-amber-200 text-amber-900'
-                : toastNotice.type === 'error'
-                ? 'bg-rose-50 border-rose-200 text-rose-900'
-                : 'bg-indigo-50 border-indigo-200 text-indigo-900'
-            }`}
-          >
-            <div className="flex items-start gap-3">
-              <div
-                className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
-                  toastNotice.type === 'success'
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : toastNotice.type === 'warning'
-                    ? 'bg-amber-100 text-amber-700'
-                    : toastNotice.type === 'error'
-                    ? 'bg-rose-100 text-rose-700'
-                    : 'bg-indigo-100 text-indigo-700'
-                }`}
-              >
-                {toastNotice.type === 'success' && <FileCheck2 className="w-5 h-5" />}
-                {toastNotice.type === 'warning' && <Database className="w-5 h-5" />}
-                {toastNotice.type === 'error' && <ShieldCheck className="w-5 h-5" />}
-                {toastNotice.type === 'info' && <Sparkles className="w-5 h-5" />}
-              </div>
-              <div>
-                <p className="text-sm font-bold">{toastNotice.message}</p>
-                {toastNotice.details && (
-                  <p className="text-xs opacity-90 mt-1 whitespace-pre-line leading-relaxed">
-                    {toastNotice.details}
-                  </p>
-                )}
-                {toastNotice.type === 'warning' && isAdmin && (
-                  <button
-                    onClick={() => {
-                      setToastNotice(null);
-                      setIsSupabaseModalOpen(true);
-                    }}
-                    className="mt-2 text-xs font-bold underline hover:opacity-80 flex items-center gap-1 text-amber-950"
-                  >
-                    <span>คลิกที่นี่เพื่อตั้งค่า Supabase URL / Key และรัน SQL Script</span>
-                    <span>→</span>
-                  </button>
-                )}
-              </div>
-            </div>
-            <button
-              onClick={() => setToastNotice(null)}
-              className="p-1 rounded-lg hover:bg-black/5 opacity-60 hover:opacity-100 text-xs font-bold"
-            >
-              ✕
-            </button>
+            className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs transition-opacity"
+            onClick={() => setIsMobileSidebarOpen(false)}
+          />
+          <div className="relative w-72 max-w-[85vw] h-full bg-[#0B1329] shadow-2xl z-10 flex flex-col">
+            <Sidebar
+              currentTeacher={currentTeacher}
+              isAdmin={isAdmin}
+              mainView={mainView}
+              setMainView={setMainView}
+              viewTab={viewTab}
+              setViewTab={setViewTab}
+              pendingAssignmentsCount={pendingAssignmentsCount}
+              totalPlansCount={plans.length}
+              myPlansCount={plans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID).length}
+              isMobileOpen={true}
+              onCloseMobile={() => setIsMobileSidebarOpen(false)}
+              onOpenSubmitModal={() => {
+                setSubmitModalInitialType(undefined);
+                setIsSubmitModalOpen(true);
+              }}
+              onOpenProfileModal={() => {
+                setTeacherToEdit(currentTeacher);
+                setIsProfileModalOpen(true);
+              }}
+              onOpenDirectoryModal={() => setIsDirectoryModalOpen(true)}
+              onOpenAdminTrackerModal={() => setIsAdminTrackerModalOpen(true)}
+              onOpenDeadlineManager={() => setIsDeadlineModalOpen(true)}
+              onScrollToAssignments={handleScrollToAssignments}
+              onLogout={handleLogout}
+              lastSyncTime={lastSyncTime}
+              isSyncing={isSyncing}
+              onManualSync={() => syncWithDatabase(false)}
+            />
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Banner with Welcome & Actions */}
-        <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-indigo-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl shadow-indigo-900/10 relative overflow-hidden">
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-white/15 backdrop-blur-md text-sky-200">
-                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                ภาคเรียนที่ 1 ปีการศึกษา 2569
+      {/* 3. Right Workspace: สีขาวบริสุทธิ์ (Pure White / Crisp Slate Canvas) */}
+      <div className="flex-1 min-w-0 flex flex-col min-h-screen bg-slate-50/70">
+        {/* Mobile Header: สีกรมท่าเข้ม (#0B1329) */}
+        <header className="md:hidden sticky top-0 z-30 bg-[#0B1329] text-white px-3.5 py-2.5 flex items-center justify-between border-b border-slate-800 shadow-md">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <button
+              onClick={() => setIsMobileSidebarOpen(true)}
+              className="p-1.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 active:scale-95"
+              aria-label="เปิดเมนูนำทาง"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-2 min-w-0">
+              <img src="/logo.svg" alt="ตราสัญลักษณ์โรงเรียน" className="w-7 h-7 object-contain shrink-0" />
+              <div className="min-w-0">
+                <span className="font-bold text-xs text-white block truncate leading-tight">
+                  ระบบส่งแผนการสอน
+                </span>
+                <span className="text-[10px] text-amber-400 block truncate">
+                  จ.ภ. กาฬสินธุ์
+                </span>
               </div>
-              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">
-                {isTeacherExecutive(currentTeacher)
-                  ? `ยินดีต้อนรับ ${currentTeacher.Name}`
-                  : `ยินดีต้อนรับ ${currentTeacher?.Name || 'อาจารย์'}`}
-              </h2>
-              <p className="text-indigo-100 text-xs sm:text-sm max-w-xl">
-                {isTeacherExecutive(currentTeacher)
-                  ? 'ศูนย์บัญชาการข้อมูลฝ่ายบริหาร: ติดตามสถานะการส่งงานรายคน รายกลุ่มสาระ สรุปช้าเร็วตรงเวลา พร้อมกราฟและรายงานผู้บริหาร'
-                  : isAdmin
-                  ? 'ระบบจัดการและส่งแผนการจัดการเรียนรู้ออนไลน์ พร้อมระบบอนุมัติและประเมินคุณภาพทุกกลุ่มสาระ'
-                  : `เชื่อมต่อฐานข้อมูลบุคลากรครู ${teachers.length} ท่าน พร้อมระบบส่งเอกสารออนไลน์`}
-              </p>
             </div>
+          </div>
 
-            <div className="flex flex-wrap items-center gap-3 shrink-0">
-              {/* Submit Document button: only for teachers, hidden for admin */}
-              {!isAdmin && (
-                <button
-                  onClick={() => {
-                    setSubmitModalInitialType(undefined);
-                    setIsSubmitModalOpen(true);
-                  }}
-                  className="px-5 py-2.5 bg-white text-indigo-900 hover:bg-indigo-50 rounded-xl text-xs sm:text-sm font-bold shadow-lg transition-transform active:scale-95 flex items-center gap-2"
-                >
-                  <PlusCircle className="w-4 h-4 text-indigo-600" />
-                  ส่งเอกสาร
-                </button>
-              )}
-
-              {/* Quick View Toggle for Admins */}
-              {isAdmin && (
-                <button
-                  onClick={() => setMainView(mainView === 'executive' ? 'plans' : 'executive')}
-                  className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold shadow-lg transition-all active:scale-95 flex items-center gap-2 ${
-                    mainView === 'executive'
-                      ? 'bg-white text-indigo-950 hover:bg-indigo-50'
-                      : 'bg-emerald-400 hover:bg-emerald-300 text-slate-950'
-                  }`}
-                >
-                  {mainView === 'executive' ? (
-                    <>
-                      <FileText className="w-4 h-4 text-indigo-700" />
-                      <span>ดูรายการแผนการสอน ({plans.length})</span>
-                    </>
-                  ) : (
-                    <>
-                      <BarChart3 className="w-4 h-4 text-slate-950" />
-                      <span>ดูแดชบอร์ดบริหาร (กราฟ)</span>
-                    </>
-                  )}
-                </button>
-              )}
-
-              {/* Admin sees prominent tracker button */}
-              {isAdmin && (
-                <button
-                  onClick={() => setIsAdminTrackerModalOpen(true)}
-                  className="px-4 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-900 rounded-xl text-xs sm:text-sm font-bold shadow-lg transition-all active:scale-95 flex items-center gap-2"
-                >
-                  <ClipboardList className="w-4 h-4 text-slate-900" />
-                  <span>ติดตามส่งแผนรายบุคคล</span>
-                </button>
-              )}
-
+          <div className="flex items-center gap-1.5">
+            {!isAdmin && (
               <button
                 onClick={() => {
-                  setTeacherToEdit(currentTeacher);
-                  setIsProfileModalOpen(true);
+                  setSubmitModalInitialType(undefined);
+                  setIsSubmitModalOpen(true);
                 }}
-                className="px-4 py-2.5 bg-white/15 hover:bg-white/25 text-white backdrop-blur-md rounded-xl text-xs sm:text-sm font-medium transition-colors border border-white/20"
+                className="px-2.5 py-1.5 bg-[#F59E0B] text-slate-950 rounded-xl text-xs font-black shadow-xs flex items-center gap-1 active:scale-95 cursor-pointer"
               >
-                แก้ไขข้อมูลส่วนตัว
+                <PlusCircle className="w-3.5 h-3.5" />
+                <span>ส่งงาน</span>
               </button>
+            )}
+            <button
+              onClick={() => {
+                setTeacherToEdit(currentTeacher);
+                setIsProfileModalOpen(true);
+              }}
+              className="p-1 rounded-xl bg-slate-800 border border-slate-700 text-slate-300"
+              title="ข้อมูลส่วนตัว"
+            >
+              <User className="w-4 h-4" />
+            </button>
+          </div>
+        </header>
+
+        {/* Desktop Top Sub-header (Notion/Linear Breadcrumb & Quick Controls) */}
+        <div className="hidden md:flex sticky top-0 z-20 bg-white/95 backdrop-blur-md px-6 py-3 border-b border-slate-200/90 items-center justify-between shadow-2xs">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+              <span>จ.ภ. กาฬสินธุ์</span>
+              <span>/</span>
+              <span className="font-bold text-slate-900">
+                {mainView === 'executive' ? '📊 แดชบอร์ดฝ่ายบริหาร' : '📑 รายการแผนการจัดการเรียนรู้'}
+              </span>
             </div>
           </div>
 
-          {/* Decorative background shapes */}
-          <div className="absolute -top-16 -right-16 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none"></div>
-          <div className="absolute -bottom-16 -left-16 w-64 h-64 bg-blue-500/20 rounded-full blur-3xl pointer-events-none"></div>
+          <div className="flex items-center gap-3">
+            {!isAdmin && (
+              <button
+                onClick={() => {
+                  setSubmitModalInitialType(undefined);
+                  setIsSubmitModalOpen(true);
+                }}
+                className="px-4 py-2 bg-[#F59E0B] hover:bg-amber-400 active:bg-amber-600 text-slate-950 font-black rounded-xl text-xs shadow-md shadow-amber-500/20 flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+              >
+                <PlusCircle className="w-4 h-4 text-slate-950" />
+                <span>ส่งเอกสารแผนการสอน</span>
+              </button>
+            )}
+            <div className="text-xs text-slate-400 font-mono flex items-center gap-1">
+              <span>ซิงค์:</span>
+              <span className="text-slate-600">{lastSyncTime}</span>
+            </div>
+          </div>
         </div>
+
+        {/* Workspace Main Content Area */}
+        <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-5 sm:space-y-6 pb-28 md:pb-12">
+          {/* Toast / Status Notice */}
+          {toastNotice && (
+            <div
+              className={`p-3.5 sm:p-4 rounded-2xl border shadow-sm flex items-start justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-200 ${
+                toastNotice.type === 'success'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                  : toastNotice.type === 'warning'
+                  ? 'bg-amber-50 border-amber-200 text-amber-900'
+                  : toastNotice.type === 'error'
+                  ? 'bg-rose-50 border-rose-200 text-rose-900'
+                  : 'bg-indigo-50 border-indigo-200 text-indigo-900'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div
+                  className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
+                    toastNotice.type === 'success'
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : toastNotice.type === 'warning'
+                      ? 'bg-amber-100 text-amber-700'
+                      : toastNotice.type === 'error'
+                      ? 'bg-rose-100 text-rose-700'
+                      : 'bg-indigo-100 text-indigo-700'
+                  }`}
+                >
+                  {toastNotice.type === 'success' && <FileCheck2 className="w-5 h-5" />}
+                  {toastNotice.type === 'warning' && <Database className="w-5 h-5" />}
+                  {toastNotice.type === 'error' && <ShieldCheck className="w-5 h-5" />}
+                  {toastNotice.type === 'info' && <Sparkles className="w-5 h-5" />}
+                </div>
+                <div>
+                  <p className="text-sm font-bold">{toastNotice.message}</p>
+                  {toastNotice.details && (
+                    <p className="text-xs opacity-90 mt-1 whitespace-pre-line leading-relaxed">
+                      {toastNotice.details}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => setToastNotice(null)}
+                className="p-1 rounded-lg hover:bg-black/5 opacity-60 hover:opacity-100 text-xs font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* แถบนับถอยหลังเป็น สีแสดทอง (#F59E0B) โดดเด่น มองเห็นทันทีตั้งแต่เปิดเว็บ */}
+          <DeadlineCountdownBanner
+            currentTeacher={currentTeacher}
+            plans={plans}
+            deadlineConfigs={deadlineConfigs}
+            onOpenSubmitForType={handleOpenSubmitForType}
+            isAdmin={isAdmin}
+          />
+
+          {/* Welcome & Overview Header Card (Pure White with crisp borders) */}
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-200/90 shadow-2xs relative overflow-hidden">
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-900 border border-amber-200">
+                  <Sparkles className="w-3 h-3 text-amber-500" />
+                  <span>โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์</span>
+                </div>
+                <h2 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight">
+                  {isTeacherExecutive(currentTeacher)
+                    ? `ยินดีต้อนรับ ${currentTeacher.Name} (ศูนย์ข้อมูลผู้บริหาร)`
+                    : `ยินดีต้อนรับ ${currentTeacher?.Name || 'อาจารย์'}`}
+                </h2>
+                <p className="text-slate-500 text-xs sm:text-sm max-w-2xl leading-relaxed">
+                  {isTeacherExecutive(currentTeacher)
+                    ? 'ศูนย์บัญชาการข้อมูลฝ่ายบริหาร: ติดตามสถานะการส่งงานรายคน รายกลุ่มสาระ สรุปช้าเร็วตรงเวลา พร้อมกราฟและรายงานผู้บริหาร'
+                    : isAdmin
+                    ? 'ระบบจัดการและส่งแผนการจัดการเรียนรู้ออนไลน์ พร้อมระบบอนุมัติและประเมินคุณภาพทุกกลุ่มสาระ'
+                    : `เชื่อมต่อฐานข้อมูลบุคลากรครู ${teachers.length} ท่าน พร้อมระบบส่งเอกสารออนไลน์`}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 shrink-0">
+                {/* Submit Document button: สีแสดทอง (#F59E0B) */}
+                {!isAdmin && (
+                  <button
+                    onClick={() => {
+                      setSubmitModalInitialType(undefined);
+                      setIsSubmitModalOpen(true);
+                    }}
+                    className="px-4 py-2.5 bg-[#F59E0B] hover:bg-amber-400 active:bg-amber-600 text-slate-950 rounded-xl text-xs sm:text-sm font-black shadow-md shadow-amber-500/20 transition-transform active:scale-95 flex items-center gap-2 cursor-pointer"
+                  >
+                    <PlusCircle className="w-4 h-4 text-slate-950" />
+                    <span>ส่งเอกสาร</span>
+                  </button>
+                )}
+
+                {/* Quick View Toggle for Admins */}
+                {isAdmin && (
+                  <button
+                    onClick={() => setMainView(mainView === 'executive' ? 'plans' : 'executive')}
+                    className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-all active:scale-95 flex items-center gap-2 cursor-pointer ${
+                      mainView === 'executive'
+                        ? 'bg-slate-900 text-white hover:bg-slate-800'
+                        : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                    }`}
+                  >
+                    {mainView === 'executive' ? (
+                      <>
+                        <FileText className="w-4 h-4 text-amber-300" />
+                        <span>ดูรายการแผน ({plans.length})</span>
+                      </>
+                    ) : (
+                      <>
+                        <BarChart3 className="w-4 h-4 text-white" />
+                        <span>ดูแดชบอร์ดบริหาร</span>
+                      </>
+                    )}
+                  </button>
+                )}
+
+                {isAdmin && (
+                  <button
+                    onClick={() => setIsAdminTrackerModalOpen(true)}
+                    className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs sm:text-sm font-bold transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <ClipboardList className="w-4 h-4 text-slate-600" />
+                    <span>ติดตามรายคน</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => {
+                    setTeacherToEdit(currentTeacher);
+                    setIsProfileModalOpen(true);
+                  }}
+                  className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs sm:text-sm font-medium transition-colors"
+                >
+                  แก้ไขข้อมูล
+                </button>
+              </div>
+            </div>
+          </div>
 
         {/* View Switcher for Admins & Leadership */}
         {isAdmin && (
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-2.5 sm:p-3 rounded-2xl border border-slate-200/90 shadow-xs">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 bg-white p-2.5 sm:p-3 rounded-2xl border border-slate-200/90 shadow-xs">
+            <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
               <button
                 onClick={() => setMainView('executive')}
-                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all ${
+                className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 sm:gap-2 transition-all cursor-pointer ${
                   mainView === 'executive'
                     ? 'bg-gradient-to-r from-blue-700 via-indigo-700 to-indigo-800 text-white shadow-md'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                 }`}
               >
                 <BarChart3 className="w-4 h-4 text-emerald-300" />
-                <span>แดชบอร์ดฝ่ายบริหาร & กราฟสถิติ</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-400 text-slate-950 font-extrabold ml-1">
+                <span className="truncate">แดชบอร์ดบริหาร</span>
+                <span className="hidden sm:inline text-[10px] px-2 py-0.5 rounded-full bg-emerald-400 text-slate-950 font-extrabold ml-1">
                   Executive
                 </span>
               </button>
 
               <button
                 onClick={() => setMainView('plans')}
-                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all ${
+                className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 sm:gap-2 transition-all cursor-pointer ${
                   mainView === 'plans'
                     ? 'bg-gradient-to-r from-blue-700 via-indigo-700 to-indigo-800 text-white shadow-md'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                 }`}
               >
                 <FileText className="w-4 h-4 text-indigo-400" />
-                <span>รายการแผนการสอนทั้งหมด ({plans.length})</span>
+                <span className="truncate">รายการแผน ({plans.length})</span>
               </button>
             </div>
 
-            <div className="text-xs text-slate-500 font-medium px-2 flex items-center gap-2">
-              <span>มุมมองปัจจุบัน:</span>
-              <span className="font-bold text-indigo-600">
+            <div className="text-xs text-slate-500 font-medium px-1 sm:px-2 flex items-center gap-1.5">
+              <span>มุมมอง:</span>
+              <span className="font-bold text-indigo-600 truncate">
                 {mainView === 'executive' ? '📊 แดชบอร์ดภาพรวมและกราฟ' : '📑 รายการแผนและการตรวจประเมิน'}
               </span>
             </div>
@@ -863,39 +1000,39 @@ export default function App() {
 
         {/* Special Admin Control Notification Bar (shown on plans view) */}
         {isAdmin && mainView === 'plans' && (
-          <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 border-2 border-amber-300/80 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-900 flex items-center justify-center shrink-0 font-bold shadow-sm">
+          <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 border-2 border-amber-300/80 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-start sm:items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-900 flex items-center justify-center shrink-0 font-bold shadow-sm mt-0.5 sm:mt-0">
                 <ShieldCheck className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2 flex-wrap">
                   <span>โหมดผู้ดูแลระบบ (Admin: {currentTeacher?.Teacher_ID})</span>
                   <span className="text-[10px] bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full font-bold">
                     Super Admin
                   </span>
                 </h4>
-                <p className="text-xs text-slate-600 mt-0.5">
+                <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
                   ท่านสามารถติดตามดูว่าครูคนใดส่งแผนแล้วบ้างแยกตามกลุ่มสาระการเรียนรู้ และมีสิทธิ์แก้ไขข้อมูลแผนการสอนรวมถึงข้อมูลครูทุกคนในระบบ
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <div className="flex items-center gap-2 shrink-0 flex-wrap w-full sm:w-auto">
               <button
                 onClick={() => setIsDeadlineModalOpen(true)}
-                className="px-3.5 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                className="flex-1 sm:flex-initial justify-center px-3.5 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
                 title="กำหนดช่วงเวลาส่งของแต่ละประเภทเอกสาร และปรับแต่งสถานะทั้งหมด"
               >
                 <Calendar className="w-3.5 h-3.5 text-amber-200" />
-                <span>กำหนดวันเวลาส่ง & จัดการสถานะ</span>
+                <span>กำหนดส่ง & สถานะ</span>
               </button>
               <button
                 onClick={() => setIsAdminTrackerModalOpen(true)}
-                className="px-3.5 py-2 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+                className="flex-1 sm:flex-initial justify-center px-3.5 py-2 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
               >
                 <ClipboardList className="w-3.5 h-3.5 text-amber-400" />
-                <span>เปิดตารางติดตามการส่งแผน</span>
+                <span>ตารางติดตามส่ง</span>
               </button>
             </div>
           </div>
@@ -936,14 +1073,14 @@ export default function App() {
             />
 
         {/* Lesson Plans Control Bar */}
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs space-y-4">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="bg-white rounded-2xl p-3.5 sm:p-5 border border-slate-200/80 shadow-xs space-y-3 sm:space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
             {/* View Tabs */}
             {!isAdmin ? (
-              <div className="flex flex-wrap bg-slate-100 p-1 rounded-xl text-xs sm:text-sm font-medium gap-1">
+              <div className="flex items-center overflow-x-auto touch-scroll max-w-full bg-slate-100 p-1 rounded-xl text-xs sm:text-sm font-medium gap-1 pb-1">
                 <button
                   onClick={() => setViewTab('all')}
-                  className={`px-3.5 py-2 rounded-lg transition-all ${
+                  className={`px-3 py-2 rounded-lg transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                     viewTab === 'all'
                       ? 'bg-white text-indigo-900 shadow-sm font-bold'
                       : 'text-slate-600 hover:text-slate-900'
@@ -953,7 +1090,7 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => setViewTab('pending_review')}
-                  className={`px-3.5 py-2 rounded-lg transition-all flex items-center gap-1.5 ${
+                  className={`px-3 py-2 rounded-lg transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
                     viewTab === 'pending_review'
                       ? 'bg-white text-amber-900 shadow-sm font-bold'
                       : 'text-slate-600 hover:text-slate-900'
@@ -965,7 +1102,7 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => setViewTab('approved')}
-                  className={`px-3.5 py-2 rounded-lg transition-all flex items-center gap-1.5 ${
+                  className={`px-3 py-2 rounded-lg transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
                     viewTab === 'approved'
                       ? 'bg-white text-emerald-900 shadow-sm font-bold'
                       : 'text-slate-600 hover:text-slate-900'
@@ -976,7 +1113,7 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => setViewTab('needs_revision')}
-                  className={`px-3.5 py-2 rounded-lg transition-all flex items-center gap-1.5 ${
+                  className={`px-3 py-2 rounded-lg transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
                     viewTab === 'needs_revision'
                       ? 'bg-white text-rose-900 shadow-sm font-bold'
                       : 'text-slate-600 hover:text-slate-900'
@@ -987,7 +1124,7 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => setViewTab('late' as any)}
-                  className={`px-3.5 py-2 rounded-lg transition-all flex items-center gap-1.5 ${
+                  className={`px-3 py-2 rounded-lg transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
                     (viewTab as any) === 'late'
                       ? 'bg-white text-orange-950 shadow-sm font-bold'
                       : 'text-slate-600 hover:text-slate-900'
@@ -1009,7 +1146,7 @@ export default function App() {
 
             {/* Status Filter buttons (Admin Only - Dynamic from statusConfigs) */}
             {isAdmin && (
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 text-xs">
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 text-xs touch-scroll max-w-full">
                 <span className="text-slate-400 text-xs shrink-0 flex items-center gap-1">
                   <ListFilter className="w-3.5 h-3.5" />
                   สถานะ:
@@ -1033,7 +1170,7 @@ export default function App() {
                     <button
                       key={`status-filter-${s.id}`}
                       onClick={() => setStatusFilter(s.id)}
-                      className={`px-3 py-1.5 rounded-lg font-medium transition-colors whitespace-nowrap cursor-pointer ${
+                      className={`px-3 py-1.5 rounded-lg font-medium transition-colors whitespace-nowrap cursor-pointer shrink-0 ${
                         statusFilter === s.id
                           ? 'bg-indigo-600 text-white font-bold shadow-xs'
                           : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
@@ -1048,15 +1185,15 @@ export default function App() {
           </div>
 
           {/* Search bar & Active filter indicators */}
-          <div className="flex flex-col sm:flex-row items-center gap-3 pt-2 border-t border-slate-100">
+          <div className="flex flex-col sm:flex-row items-center gap-2.5 sm:gap-3 pt-2 border-t border-slate-100">
             <div className="relative flex-1 w-full">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5 sm:top-3" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="ค้นหารหัสวิชา (ว31101), ชื่อวิชา, ชื่อแผน, หรือชื่อครูผู้สอน..."
-                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:bg-white"
+                className="w-full pl-10 pr-4 py-2.5 sm:py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:bg-white"
               />
             </div>
 
@@ -1074,21 +1211,49 @@ export default function App() {
           </div>
         </div>
 
-        {/* Lesson Plans Grid */}
+        {/* Lesson Plans Grid & Table View */}
         <div>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-              <FileCheck2 className="w-4 h-4 text-indigo-600" />
+              <FileCheck2 className="w-4 h-4 text-amber-500" />
               <span>รายการแผนการจัดการเรียนรู้</span>
               <span className="text-xs text-slate-500 font-normal">
                 (พบ {filteredPlans.length} รายการ)
               </span>
             </h3>
+
+            {/* View Switcher: บอร์ดการ์ด vs ตารางแถวสรุป (สไตล์ Notion / Linear) */}
+            <div className="inline-flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/90 self-start sm:self-auto shrink-0 shadow-2xs">
+              <button
+                onClick={() => setPlanDisplayMode('board')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  planDisplayMode === 'board'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="ดูแบบบอร์ดการ์ด"
+              >
+                <LayoutGrid className="w-3.5 h-3.5 text-amber-500" />
+                <span>บอร์ดการ์ด</span>
+              </button>
+              <button
+                onClick={() => setPlanDisplayMode('table')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  planDisplayMode === 'table'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="ดูแบบตารางแถวสรุป รวดเร็วทันใจ"
+              >
+                <TableIcon className="w-3.5 h-3.5 text-amber-500" />
+                <span>ตารางแถวสรุป</span>
+              </button>
+            </div>
           </div>
 
           {filteredPlans.length === 0 ? (
             <div className="bg-white rounded-3xl p-12 text-center border border-slate-200/80 shadow-xs space-y-3">
-              <div className="w-16 h-16 rounded-2xl bg-indigo-50 flex items-center justify-center mx-auto text-indigo-400">
+              <div className="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center mx-auto text-amber-500">
                 <BookOpen className="w-8 h-8" />
               </div>
               <h4 className="text-base font-bold text-slate-800">
@@ -1102,14 +1267,14 @@ export default function App() {
               {!isAdmin && (
                 <button
                   onClick={() => setIsSubmitModalOpen(true)}
-                  className="mt-2 inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-medium transition-colors"
+                  className="mt-2 inline-flex items-center gap-2 px-4 py-2 bg-[#F59E0B] hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs transition-colors shadow-sm cursor-pointer"
                 >
-                  <PlusCircle className="w-4 h-4" />
-                  ส่งเอกสาร
+                  <PlusCircle className="w-4 h-4 text-slate-950" />
+                  <span>ส่งเอกสาร</span>
                 </button>
               )}
             </div>
-          ) : (
+          ) : planDisplayMode === 'board' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {filteredPlans.map((plan) => (
                 <LessonPlanCard
@@ -1127,6 +1292,45 @@ export default function App() {
                   onToggleLate={handleTogglePlanLate}
                 />
               ))}
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+              <div className="overflow-x-auto touch-scroll">
+                <table className="w-full text-left border-collapse min-w-[760px]">
+                  <thead>
+                    <tr className="bg-slate-50/90 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                      <th className="py-3.5 px-4">รหัสวิชา & รายวิชา</th>
+                      <th className="py-3.5 px-3 hidden sm:table-cell">ผู้สอน</th>
+                      <th className="py-3.5 px-3 hidden md:table-cell">ประเภทเอกสาร</th>
+                      <th className="py-3.5 px-3 hidden lg:table-cell">วันที่ส่ง & ความตรงต่อเวลา</th>
+                      <th className="py-3.5 px-3">สถานะ</th>
+                      <th className="py-3.5 px-4 text-right">การจัดการ</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredPlans.map((plan) => (
+                      <LessonPlanTableRow
+                        key={plan.id}
+                        plan={plan}
+                        currentTeacher={currentTeacher || teachers[0]}
+                        onOpenReceipt={(p) => setSelectedPlanForReceipt(p)}
+                        onOpenReview={(p) => setSelectedPlanForReview(p)}
+                        onDeletePlan={(id) => handleDeletePlan(id)}
+                        onEditPlan={(p) => setPlanToEdit(p)}
+                        onResubmitPlan={(p) => setPlanToResubmit(p)}
+                        statusConfigs={statusConfigs}
+                        deadlineConfigs={deadlineConfigs}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="p-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+                <span>แสดงทั้งหมด {filteredPlans.length} รายการ</span>
+                <span className="text-[11px] text-slate-400">
+                  💡 บนจอมือถือสามารถเลื่อนซ้าย-ขวาเพื่อดูข้อมูลครบถ้วน
+                </span>
+              </div>
             </div>
           )}
         </div>
@@ -1153,7 +1357,6 @@ export default function App() {
           }}
           onSubmit={handleCreatePlan}
           isSupabaseConnected={isSupabaseConnected}
-          onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
           deadlineConfigs={deadlineConfigs}
           initialPlanType={submitModalInitialType}
         />
@@ -1221,7 +1424,6 @@ export default function App() {
         plans={plans}
         isOpen={isFileStorageModalOpen}
         onClose={() => setIsFileStorageModalOpen(false)}
-        onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
       />
 
       {/* Admin Tracker Matrix Modal */}
@@ -1250,7 +1452,6 @@ export default function App() {
         plans={plans}
         onUpdatePlanStatus={handleQuickChangePlanStatus}
         isSupabaseConnected={isSupabaseConnected}
-        onOpenSupabaseConfig={() => setIsSupabaseModalOpen(true)}
       />
 
       {/* Edit Plan Modal (Teacher owner or Admin) */}
@@ -1304,6 +1505,104 @@ export default function App() {
         isOpen={isLoginModalOpen}
         onLogin={handleSetCurrentUser}
       />
+
+      {/* Mobile Floating Bottom Navigation Bar: สะดวกใช้งานบนมือถือด้วยนิ้วโป้งเดียว (Style 4: แสด-กรมท่า) */}
+      {currentTeacher && (
+        <nav
+          aria-label="เมนูหลักสำหรับมือถือ"
+          className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-xl px-2 pt-1 pb-safe flex items-center justify-around text-[10px] font-bold text-slate-600 transition-all select-none"
+        >
+          {/* Button 1: แผนงาน */}
+          <button
+            onClick={() => {
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+              setMainView('plans');
+              setViewTab('all');
+            }}
+            className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl transition-colors cursor-pointer active:scale-95 ${
+              mainView === 'plans' ? 'text-amber-600 font-extrabold' : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <FileText className="w-5 h-5" />
+            <span>แผนงาน</span>
+          </button>
+
+          {/* Button 2: ภาระงาน หรือ แดชบอร์ด */}
+          {isAdmin ? (
+            <button
+              onClick={() => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                setMainView('executive');
+              }}
+              className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl transition-colors cursor-pointer active:scale-95 ${
+                mainView === 'executive' ? 'text-amber-600 font-extrabold' : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              <BarChart3 className="w-5 h-5" />
+              <span>แดชบอร์ด</span>
+            </button>
+          ) : (
+            <button
+              onClick={handleScrollToAssignments}
+              className="relative flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl transition-colors cursor-pointer active:scale-95 text-slate-500 hover:text-slate-900"
+            >
+              <div className="relative">
+                <Bell className="w-5 h-5 text-amber-500" />
+                {pendingAssignmentsCount !== undefined && pendingAssignmentsCount > 0 ? (
+                  <span className="absolute -top-1 -right-1.5 min-w-[15px] h-[15px] px-0.5 bg-amber-500 text-slate-950 rounded-full text-[9px] font-black flex items-center justify-center">
+                    {pendingAssignmentsCount}
+                  </span>
+                ) : (
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-emerald-500 rounded-full"></span>
+                )}
+              </div>
+              <span>ภาระงาน</span>
+            </button>
+          )}
+
+          {/* Button 3: ส่งเอกสาร (Large Center Action: สีแสดทอง #F59E0B โดดเด่น) */}
+          {!isAdmin ? (
+            <button
+              onClick={() => {
+                setSubmitModalInitialType(undefined);
+                setIsSubmitModalOpen(true);
+              }}
+              className="-mt-5 flex flex-col items-center justify-center w-12 h-12 rounded-full bg-[#F59E0B] hover:bg-amber-400 active:bg-amber-600 text-slate-950 shadow-lg shadow-amber-500/30 border-3 border-white active:scale-90 transition-transform cursor-pointer"
+              title="ส่งเอกสารแผนการสอน"
+            >
+              <PlusCircle className="w-6 h-6 text-slate-950" />
+            </button>
+          ) : (
+            <button
+              onClick={() => setIsAdminTrackerModalOpen(true)}
+              className="-mt-5 flex flex-col items-center justify-center w-12 h-12 rounded-full bg-[#0B1329] text-amber-400 shadow-lg shadow-slate-950/30 border-3 border-white active:scale-90 transition-transform cursor-pointer"
+              title="ติดตามส่งแผนรายบุคคล"
+            >
+              <ClipboardList className="w-6 h-6 text-amber-400" />
+            </button>
+          )}
+
+          {/* Button 4: บุคลากร */}
+          <button
+            onClick={() => setIsDirectoryModalOpen(true)}
+            className="flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl transition-colors cursor-pointer active:scale-95 text-slate-500 hover:text-slate-900"
+          >
+            <Users className="w-5 h-5 text-slate-600" />
+            <span>บุคลากร</span>
+          </button>
+
+          {/* Button 5: เมนูแผงควบคุม (เปิด Sidebar Drawer สีกรมท่า #0B1329) */}
+          <button
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl transition-colors cursor-pointer active:scale-95 text-slate-500 hover:text-slate-900"
+            title="เปิดเมนูเพิ่มเติม"
+          >
+            <Menu className="w-5 h-5 text-slate-700" />
+            <span>เมนู</span>
+          </button>
+        </nav>
+      )}
     </div>
+  </div>
   );
 }

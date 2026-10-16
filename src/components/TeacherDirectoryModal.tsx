@@ -61,52 +61,53 @@ export const TeacherDirectoryModal: React.FC<TeacherDirectoryModalProps> = ({
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-2.5 sm:p-4 overflow-y-auto"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden my-6 animate-in fade-in zoom-in-95 duration-200"
+        className="w-full max-w-4xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-100 overflow-hidden my-auto sm:my-6 flex flex-col max-h-[94vh] animate-in fade-in zoom-in-95 duration-200"
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-indigo-800 via-indigo-700 to-blue-700 p-6 text-white flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-white/15 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/25">
-              <Users className="w-7 h-7 text-white" />
+        <div className="bg-gradient-to-r from-indigo-800 via-indigo-700 to-blue-700 p-4 sm:p-6 text-white flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3 min-w-0 pr-2">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white/15 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/25 shrink-0">
+              <Users className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
             </div>
-            <div>
-              <span className="text-xs uppercase tracking-wider font-semibold text-indigo-200">
+            <div className="min-w-0">
+              <span className="text-[11px] sm:text-xs uppercase tracking-wider font-semibold text-indigo-200 block truncate">
                 Staff Database
               </span>
-              <h2 className="text-xl font-bold">
+              <h2 className="text-base sm:text-xl font-bold truncate">
                 ทำเนียบบุคลากร ({teachers.length} ท่าน)
               </h2>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors"
+            className="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors active:scale-95 cursor-pointer shrink-0"
+            aria-label="ปิดหน้าต่าง"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Filter bar */}
-        <div className="p-6 pb-2 border-b border-slate-100 space-y-3">
-          <div className="flex flex-col sm:flex-row gap-3">
+        <div className="p-3.5 sm:p-6 pb-2 border-b border-slate-100 space-y-2.5 sm:space-y-3 shrink-0">
+          <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3">
             <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5 sm:top-3" />
               <input
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="ค้นหาชื่อ, รหัสครู (Teacher_ID), อีเมล..."
-                className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
+                className="w-full pl-10 pr-4 py-2.5 sm:py-2 border border-slate-200 rounded-xl text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
               />
             </div>
             <select
               value={selectedArea}
               onChange={(e) => setSelectedArea(e.target.value)}
-              className="px-3 py-2 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 bg-white"
+              className="px-3 py-2.5 sm:py-2 border border-slate-200 rounded-xl text-base sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 bg-white"
             >
               {areas.map((a) => (
                 <option key={a} value={a}>
@@ -118,7 +119,7 @@ export const TeacherDirectoryModal: React.FC<TeacherDirectoryModalProps> = ({
         </div>
 
         {/* Teachers Grid */}
-        <div className="p-6 max-h-[60vh] overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="p-3.5 sm:p-6 flex-1 overflow-y-auto touch-scroll grid grid-cols-1 md:grid-cols-2 gap-3">
           {filtered.map((t) => {
             const photoUrl = formatGoogleDriveImageUrl(t.photo);
             const isMe = t.Teacher_ID === currentTeacher.Teacher_ID;

@@ -1,5 +1,31 @@
 @import "tailwindcss";
 
+/* Mobile UX & Touch Optimization */
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  scroll-behavior: smooth;
+}
+
+body {
+  touch-action: manipulation;
+  overscroll-behavior-y: none;
+}
+
+/* Safe Area Inset Support for Modern Mobile Devices */
+.pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+.pt-safe {
+  padding-top: max(0.5rem, env(safe-area-inset-top));
+}
+
+/* Mobile Smooth Momentum Scrolling */
+.touch-scroll {
+  -webkit-overflow-scrolling: touch;
+}
+
 /* Dinosaur Jumping & Tilting (Dancing) Animation Keyframes */
 @keyframes dino-jump-tilt {
   0%, 100% {

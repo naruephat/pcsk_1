@@ -19,14 +19,13 @@ interface FileStorageInfoModalProps {
   plans: LessonPlan[];
   isOpen: boolean;
   onClose: () => void;
-  onOpenSupabaseModal: () => void;
+  onOpenSupabaseModal?: () => void;
 }
 
 export const FileStorageInfoModal: React.FC<FileStorageInfoModalProps> = ({
   plans,
   isOpen,
   onClose,
-  onOpenSupabaseModal,
 }) => {
   if (!isOpen) return null;
 
@@ -99,25 +98,7 @@ export const FileStorageInfoModal: React.FC<FileStorageInfoModalProps> = ({
             </div>
           </div>
 
-          {/* Quick configure Supabase Storage */}
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-2">
-              <Server className="w-4 h-4 text-slate-500" />
-              <span className="text-slate-700">
-                ต้องการตรวจสอบคำสั่ง SQL สำหรับเปิด Bucket <strong>lesson-plans</strong> บน Supabase หรือไม่?
-              </span>
-            </div>
-            <button
-              onClick={() => {
-                onClose();
-                onOpenSupabaseModal();
-              }}
-              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl shrink-0 flex items-center gap-1 transition-colors"
-            >
-              <span>ดูคำสั่งสร้าง Bucket</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
+
 
           {/* List of Files uploaded currently */}
           <div className="space-y-3">
