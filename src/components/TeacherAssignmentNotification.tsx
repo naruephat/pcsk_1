@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Teacher, LessonPlan, PlanTypeDeadlineConfig, PlanStatusConfig } from '../types';
 import {
   constructDateTime,
@@ -61,6 +61,21 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
 }) => {
   const [filter, setFilter] = useState<'all' | 'pending' | 'submitted'>('all');
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
+  const [isHighlighted, setIsHighlighted] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleFilterEvent = (e: any) => {
+      if (e.detail?.filter) {
+        setFilter(e.detail.filter);
+      }
+      setIsCollapsed(false);
+      setIsHighlighted(true);
+      const timer = setTimeout(() => setIsHighlighted(false), 2000);
+      return () => clearTimeout(timer);
+    };
+    window.addEventListener('filter-assignments', handleFilterEvent);
+    return () => window.removeEventListener('filter-assignments', handleFilterEvent);
+  }, []);
 
   // Filter only active deadline configs configured by Admin
   const activeConfigs = useMemo(() => {
@@ -153,7 +168,11 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
   return (
     <div
       id="assigned-documents-section"
-      className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden transition-all duration-200"
+      className={`scroll-mt-20 bg-white rounded-2xl border shadow-sm overflow-hidden transition-all duration-300 ${
+        isHighlighted
+          ? 'border-amber-400 ring-4 ring-amber-400/30 shadow-lg scale-[1.005]'
+          : 'border-slate-200/90'
+      }`}
     >
       {/* Top Header Card (Style 4: Midnight Navy with Amber Highlights) */}
       <div className="bg-[#0B1329] text-white p-4 sm:p-6 border-b border-slate-800">

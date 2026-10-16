@@ -563,10 +563,12 @@ export default function App() {
     return pending;
   }, [currentTeacher, isAdmin, deadlineConfigs, plans]);
 
-  const handleScrollToAssignments = () => {
+  const handleScrollToAssignments = (filter?: 'pending' | 'all' | React.MouseEvent) => {
+    const filterType = filter === 'all' ? 'all' : 'pending';
+    window.dispatchEvent(new CustomEvent('filter-assignments', { detail: { filter: filterType } }));
     const el = document.getElementById('assigned-documents-section');
     if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   };
 
@@ -871,6 +873,7 @@ export default function App() {
             deadlineConfigs={deadlineConfigs}
             onOpenSubmitForType={handleOpenSubmitForType}
             isAdmin={isAdmin}
+            onScrollToAssignments={handleScrollToAssignments}
           />
 
           {/* Welcome & Overview Header Card (Pure White with crisp borders) */}
@@ -1404,7 +1407,6 @@ export default function App() {
           currentTeacher={currentTeacher}
           isOpen={isDirectoryModalOpen}
           onClose={() => setIsDirectoryModalOpen(false)}
-          onSwitchUser={handleSetCurrentUser}
           onEditTeacher={(t) => {
             setTeacherToEdit(t);
             setIsProfileModalOpen(true);

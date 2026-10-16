@@ -8,6 +8,7 @@ import {
   Calendar,
   Upload,
   ArrowRight,
+  ArrowDown,
   Flame,
   X,
   Sparkles,
@@ -19,6 +20,7 @@ interface DeadlineCountdownBannerProps {
   deadlineConfigs: PlanTypeDeadlineConfig[];
   onOpenSubmitForType: (planType: string) => void;
   isAdmin: boolean;
+  onScrollToAssignments?: () => void;
 }
 
 export const DeadlineCountdownBanner: React.FC<DeadlineCountdownBannerProps> = ({
@@ -27,6 +29,7 @@ export const DeadlineCountdownBanner: React.FC<DeadlineCountdownBannerProps> = (
   deadlineConfigs,
   onOpenSubmitForType,
   isAdmin,
+  onScrollToAssignments,
 }) => {
   const [now, setNow] = useState<Date>(new Date());
   const [isDismissed, setIsDismissed] = useState<boolean>(false);
@@ -112,6 +115,18 @@ export const DeadlineCountdownBanner: React.FC<DeadlineCountdownBannerProps> = (
 
   const { config, isOverdue, days, hours, minutes, allCompleted } = targetInfo;
 
+  const handleScrollToPending = () => {
+    window.dispatchEvent(new CustomEvent('filter-assignments', { detail: { filter: 'pending' } }));
+    if (onScrollToAssignments) {
+      onScrollToAssignments();
+    } else {
+      const el = document.getElementById('assigned-documents-section');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  };
+
   return (
     <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-slate-950 p-4 sm:p-5 shadow-lg shadow-amber-500/20 border-2 border-amber-300 transition-all animate-in fade-in slide-in-from-top-3 duration-300">
       {/* Decorative Glow Elements */}
@@ -179,12 +194,13 @@ export const DeadlineCountdownBanner: React.FC<DeadlineCountdownBannerProps> = (
         <div className="flex items-center gap-2 shrink-0 pt-1 md:pt-0">
           {!allCompleted && !isAdmin && (
             <button
-              onClick={() => onOpenSubmitForType(config.name)}
+              onClick={handleScrollToPending}
               className="flex-1 md:flex-initial px-4 sm:px-5 py-2.5 bg-[#0B1329] hover:bg-slate-900 text-amber-300 hover:text-white rounded-xl text-xs sm:text-sm font-black shadow-md flex items-center justify-center gap-1.5 transition-transform active:scale-95 cursor-pointer"
+              title="เลื่อนลงไปยังรายการงานที่ยังไม่ได้ส่ง"
             >
-              <Upload className="w-4 h-4 text-amber-400" />
-              <span>ส่งงานตอนนี้</span>
-              <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
+              <ArrowDown className="w-4 h-4 text-amber-400 animate-bounce" />
+              <span>เลื่อนไปงานที่ยังไม่ส่ง</span>
+              <ArrowDown className="w-3.5 h-3.5 ml-0.5" />
             </button>
           )}
 

@@ -20,7 +20,7 @@ interface TeacherDirectoryModalProps {
   currentTeacher: Teacher;
   isOpen: boolean;
   onClose: () => void;
-  onSwitchUser: (teacher: Teacher) => void;
+  onSwitchUser?: (teacher: Teacher) => void;
   onEditTeacher: (teacher: Teacher) => void;
 }
 
@@ -29,7 +29,6 @@ export const TeacherDirectoryModal: React.FC<TeacherDirectoryModalProps> = ({
   currentTeacher,
   isOpen,
   onClose,
-  onSwitchUser,
   onEditTeacher,
 }) => {
   const [query, setQuery] = useState('');
@@ -212,18 +211,6 @@ export const TeacherDirectoryModal: React.FC<TeacherDirectoryModalProps> = ({
                     >
                       <Edit3 className="w-4 h-4" />
                     </button>
-                    {!isMe && isAdmin && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onSwitchUser(t);
-                          onClose();
-                        }}
-                        className="px-2.5 py-1 text-xs bg-slate-100 hover:bg-indigo-600 hover:text-white text-slate-700 rounded-lg transition-colors font-medium"
-                      >
-                        สลับใช้งาน
-                      </button>
-                    )}
                   </div>
                 </div>
               </div>
