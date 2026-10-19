@@ -24,6 +24,8 @@ export type PlanType =
   | 'แผนการจัดการเรียนรู้ฉบับสมบูรณ์'
   | string;
 
+export type EvaluationType = 'rubric_score' | 'approval_only';
+
 export interface PlanTypeDeadlineConfig {
   id: string;
   name: string;
@@ -36,6 +38,7 @@ export interface PlanTypeDeadlineConfig {
   end_time: string; // HH:mm
   allow_late: boolean;
   is_active: boolean;
+  evaluation_type?: EvaluationType; // 'rubric_score' (ให้คะแนนรูบริก) หรือ 'approval_only' (ตรวจแค่อนุมัติ/ไม่อนุมัติ)
   notes?: string;
 }
 
@@ -95,6 +98,7 @@ export interface LessonPlan {
   review_comment?: string;
   rubric_scores?: RubricScore;
   total_score?: number;
+  evaluation_type?: EvaluationType;
 }
 
 export interface SupabaseConfig {

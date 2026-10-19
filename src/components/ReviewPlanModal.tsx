@@ -1,6 +1,16 @@
 import React, { useState } from 'react';
-import { LessonPlan, Teacher, PlanStatus, RubricScore, PlanStatusConfig } from '../types';
-import { getSavedStatusConfigs } from '../utils/deadlineUtils';
+import {
+  LessonPlan,
+  Teacher,
+  PlanStatus,
+  RubricScore,
+  PlanStatusConfig,
+  PlanTypeDeadlineConfig,
+} from '../types';
+import {
+  getSavedStatusConfigs,
+  getPlanEvaluationType,
+} from '../utils/deadlineUtils';
 import {
   X,
   CheckCircle,
@@ -21,6 +31,7 @@ interface ReviewPlanModalProps {
   onClose: () => void;
   onSaveReview: (updatedPlan: LessonPlan) => Promise<any> | any;
   statusConfigs?: PlanStatusConfig[];
+  deadlineConfigs?: PlanTypeDeadlineConfig[];
 }
 
 export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
@@ -30,9 +41,12 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
   onClose,
   onSaveReview,
   statusConfigs,
+  deadlineConfigs,
 }) => {
   const allStatuses = statusConfigs || getSavedStatusConfigs();
-  const [status, setStatus] = useState<PlanStatus>(plan.status === 'submitted' ? 'approved' : plan.status);
+  const [status, setStatus] = useState<PlanStatus>(
+    plan.status === 'submitted' ? 'approved' : plan.status
+  );
   const [comment, setComment] = useState(plan.review_comment || '');
   const [rubrics, setRubrics] = useState<RubricScore>(
     plan.rubric_scores || {
@@ -44,6 +58,10 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
     }
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const evaluationType =
+    plan.evaluation_type || getPlanEvaluationType(plan.plan_type, deadlineConfigs);
+  const isApprovalOnly = evaluationType === 'approval_only';
 
   if (!isOpen) return null;
 
@@ -72,8 +90,9 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
       reviewer_name: `${reviewer.Name} (${reviewer.position})`,
       reviewed_at: dateStr,
       review_comment: comment.trim(),
-      rubric_scores: rubrics,
-      total_score: totalRubricScore,
+      rubric_scores: isApprovalOnly ? undefined : rubrics,
+      total_score: isApprovalOnly ? undefined : totalRubricScore,
+      evaluation_type: isApprovalOnly ? 'approval_only' : 'rubric_score',
     };
 
     try {
@@ -130,9 +149,22 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
         <div className="p-3.5 sm:p-6 pb-2.5 sm:pb-3 border-b border-slate-100 bg-slate-50/60 shrink-0">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-indigo-100 text-indigo-700 mb-1">
-                {plan.subject_code} - {plan.subject_name}
-              </span>
+              <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-indigo-100 text-indigo-700">
+                  {plan.subject_code} - {plan.subject_name}
+                </span>
+                {isApprovalOnly ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                    <CheckCircle className="w-3 h-3 text-purple-600" />
+                    <span>ตรวจแค่อนุมัติ/ไม่อนุมัติ (ไม่คิดคะแนน)</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                    <Award className="w-3 h-3 text-amber-600" />
+                    <span>ตรวจแบบให้คะแนนรูบริก (100)</span>
+                  </span>
+                )}
+              </div>
               <h3 className="text-sm sm:text-base font-bold text-slate-800 line-clamp-1">{plan.plan_title}</h3>
               <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 truncate">
                 ครู: <strong className="text-slate-700">{plan.teacher_name}</strong> ({plan.teacher_id}) · {plan.learning_area} · ชั้น {plan.grade_level}
@@ -246,51 +278,63 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
             </div>
           </div>
 
-          {/* Rubric Evaluation */}
-          <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                <Award className="w-4 h-4 text-indigo-600" />
-                เกณฑ์การประเมินคุณภาพแผน (5 ด้าน)
-              </h4>
-              <div className="text-xs font-bold px-2.5 py-1 bg-indigo-100 text-indigo-800 rounded-lg">
-                คะแนนรวม: {totalRubricScore}%
+          {/* Rubric Evaluation OR Approval-Only Notice */}
+          {isApprovalOnly ? (
+            <div className="bg-indigo-50/70 border border-indigo-200/90 rounded-2xl p-4 text-xs text-indigo-950 space-y-1.5">
+              <div className="flex items-center gap-2 font-bold text-indigo-900">
+                <CheckCircle className="w-4 h-4 text-indigo-600" />
+                <span>รูปแบบการตรวจ: ตรวจพิจารณาอนุมัติ / ส่งกลับแก้ไข (ไม่คิดคะแนน)</span>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                เอกสารประเภท <strong>&ldquo;{plan.plan_type}&rdquo;</strong> ถูกกำหนดให้ตรวจแบบอนุมัติการใช้งานโดยไม่ต้องกรอกคะแนนรูบริก ท่านสามารถเลือกผลการพิจารณาด้านบนและพิมพ์ข้อเสนอแนะได้ทันที
+              </p>
+            </div>
+          ) : (
+            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <Award className="w-4 h-4 text-indigo-600" />
+                  เกณฑ์การประเมินคุณภาพแผน (5 ด้าน)
+                </h4>
+                <div className="text-xs font-bold px-2.5 py-1 bg-indigo-100 text-indigo-800 rounded-lg">
+                  คะแนนรวม: {totalRubricScore}%
+                </div>
+              </div>
+
+              <div className="space-y-2.5 pt-1 text-xs">
+                {[
+                  { key: 'standards' as const, label: '1. ความสอดคล้องของมาตรฐานการเรียนรู้และตัวชี้วัด' },
+                  { key: 'activities' as const, label: '2. การจัดกิจกรรมการเรียนรู้เชิงรุก (Active Learning)' },
+                  { key: 'media' as const, label: '3. สื่อ นวัตกรรม เทคโนโลยี และแหล่งเรียนรู้' },
+                  { key: 'assessment' as const, label: '4. เครื่องมือการวัดผลและประเมินผลตามสภาพจริง' },
+                  { key: 'recording' as const, label: '5. บันทึกผลหลังสอนและการสะท้อนคิด (Reflection)' },
+                ].map((item) => (
+                  <div
+                    key={item.key}
+                    className="flex items-center justify-between bg-white p-2.5 rounded-xl border border-slate-200/60"
+                  >
+                    <span className="text-slate-700 font-medium">{item.label}</span>
+                    <div className="flex items-center gap-1">
+                      {[1, 2, 3, 4, 5].map((score) => (
+                        <button
+                          type="button"
+                          key={score}
+                          onClick={() => updateRubric(item.key, score)}
+                          className={`w-7 h-7 rounded-lg font-bold text-xs transition-all ${
+                            rubrics[item.key] >= score
+                              ? 'bg-amber-400 text-slate-900 shadow-sm'
+                              : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                          }`}
+                        >
+                          {score}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-
-            <div className="space-y-2.5 pt-1 text-xs">
-              {[
-                { key: 'standards' as const, label: '1. ความสอดคล้องของมาตรฐานการเรียนรู้และตัวชี้วัด' },
-                { key: 'activities' as const, label: '2. การจัดกิจกรรมการเรียนรู้เชิงรุก (Active Learning)' },
-                { key: 'media' as const, label: '3. สื่อ นวัตกรรม เทคโนโลยี และแหล่งเรียนรู้' },
-                { key: 'assessment' as const, label: '4. เครื่องมือการวัดผลและประเมินผลตามสภาพจริง' },
-                { key: 'recording' as const, label: '5. บันทึกผลหลังสอนและการสะท้อนคิด (Reflection)' },
-              ].map((item) => (
-                <div
-                  key={item.key}
-                  className="flex items-center justify-between bg-white p-2.5 rounded-xl border border-slate-200/60"
-                >
-                  <span className="text-slate-700 font-medium">{item.label}</span>
-                  <div className="flex items-center gap-1">
-                    {[1, 2, 3, 4, 5].map((score) => (
-                      <button
-                        type="button"
-                        key={score}
-                        onClick={() => updateRubric(item.key, score)}
-                        className={`w-7 h-7 rounded-lg font-bold text-xs transition-all ${
-                          rubrics[item.key] >= score
-                            ? 'bg-amber-400 text-slate-900 shadow-sm'
-                            : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
-                        }`}
-                      >
-                        {score}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          )}
 
           {/* Comment & Feedback */}
           <div>

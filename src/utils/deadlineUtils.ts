@@ -3,6 +3,7 @@ import {
   PlanStatusConfig,
   StatusColor,
   LessonPlan,
+  EvaluationType,
 } from '../types';
 
 export const STORAGE_KEY_DEADLINES = 'lp_deadline_configs';
@@ -21,6 +22,7 @@ export const DEFAULT_DEADLINE_CONFIGS: PlanTypeDeadlineConfig[] = [
     end_time: '16:30',
     allow_late: true,
     is_active: true,
+    evaluation_type: 'approval_only', // ตรวจแค่อนุมัติ/ไม่อนุมัติ ไม่ต้องให้คะแนน
     notes: 'ส่งก่อนเปิดภาคเรียนอย่างน้อย 1 สัปดาห์',
   },
   {
@@ -35,6 +37,7 @@ export const DEFAULT_DEADLINE_CONFIGS: PlanTypeDeadlineConfig[] = [
     end_time: '23:59',
     allow_late: true,
     is_active: true,
+    evaluation_type: 'rubric_score', // ตรวจแบบให้คะแนนรูบริก 100 คะแนน
     notes: 'ส่งไฟล์ PDF ทางลิงก์ พร้อมบันทึกข้อเสนอแนะและแบบรูบริกส์',
   },
 ];
@@ -97,6 +100,27 @@ export function saveDeadlineConfigs(configs: PlanTypeDeadlineConfig[]): void {
   } catch (e) {
     console.error('Failed to save deadline configs:', e);
   }
+}
+
+/**
+ * Determine evaluation type ('rubric_score' or 'approval_only') for a given plan type
+ */
+export function getPlanEvaluationType(
+  planTypeOrName?: string,
+  configs?: PlanTypeDeadlineConfig[]
+): EvaluationType {
+  if (!planTypeOrName) return 'rubric_score';
+  const allConfigs = configs && configs.length > 0 ? configs : getSavedDeadlineConfigs();
+  const trimmed = planTypeOrName.trim().toLowerCase();
+  const found = allConfigs.find((c) => (c.name || '').trim().toLowerCase() === trimmed);
+  if (found && found.evaluation_type) {
+    return found.evaluation_type;
+  }
+  // Smart default: if the title mentions 'ฉบับย่อ' or 'ย่อ', default to 'approval_only', else 'rubric_score'
+  if (trimmed.includes('ฉบับย่อ') || trimmed.includes('ย่อ')) {
+    return 'approval_only';
+  }
+  return 'rubric_score';
 }
 
 /**

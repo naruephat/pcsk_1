@@ -45,6 +45,7 @@ import {
   ExternalLink,
   HardDrive,
   FileJson,
+  Award,
 } from 'lucide-react';
 
 interface DeadlineManagerModalProps {
@@ -97,6 +98,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
     end_time: '16:30',
     allow_late: true,
     is_active: true,
+    evaluation_type: 'rubric_score',
     notes: '',
   });
   const [isAddingDeadline, setIsAddingDeadline] = useState(false);
@@ -277,6 +279,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
       end_time: newDeadline.end_time || '16:30',
       allow_late: newDeadline.allow_late ?? true,
       is_active: newDeadline.is_active ?? true,
+      evaluation_type: newDeadline.evaluation_type || 'rubric_score',
       notes: newDeadline.notes?.trim() || '',
     };
 
@@ -293,6 +296,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
       end_time: '16:30',
       allow_late: true,
       is_active: true,
+      evaluation_type: 'rubric_score',
       notes: '',
     });
     await handleSaveDeadlines(nextList);
@@ -825,6 +829,70 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                     </div>
                   </div>
 
+                  {/* Evaluation Mode Selection */}
+                  <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
+                    <span className="text-xs font-bold text-slate-800 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Award className="w-3.5 h-3.5 text-purple-600" />
+                        <span>รูปแบบการตรวจประเมินของงานนี้</span>
+                        <span className="text-rose-500">*</span>
+                      </span>
+                      <span className="text-[10px] text-slate-500">เลือกรูปแบบที่ให้กรรมการตรวจ</span>
+                    </span>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                      <label
+                        className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-2.5 ${
+                          (newDeadline.evaluation_type || 'rubric_score') === 'rubric_score'
+                            ? 'border-amber-500 bg-amber-50/80 text-amber-950 shadow-xs'
+                            : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="new_evaluation_type"
+                          value="rubric_score"
+                          checked={(newDeadline.evaluation_type || 'rubric_score') === 'rubric_score'}
+                          onChange={() => setNewDeadline({ ...newDeadline, evaluation_type: 'rubric_score' })}
+                          className="mt-0.5 text-amber-600 focus:ring-amber-500"
+                        />
+                        <div>
+                          <div className="text-xs font-bold flex items-center gap-1 text-slate-900">
+                            🏆 ตรวจแบบให้คะแนน (Rubric)
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                            มีเกณฑ์ประเมิน 5 ด้าน คำนวณเป็น 100% เหมาะสำหรับแผนฉบับสมบูรณ์
+                          </div>
+                        </div>
+                      </label>
+
+                      <label
+                        className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-2.5 ${
+                          newDeadline.evaluation_type === 'approval_only'
+                            ? 'border-indigo-500 bg-indigo-50/80 text-indigo-950 shadow-xs'
+                            : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="new_evaluation_type"
+                          value="approval_only"
+                          checked={newDeadline.evaluation_type === 'approval_only'}
+                          onChange={() => setNewDeadline({ ...newDeadline, evaluation_type: 'approval_only' })}
+                          className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <div>
+                          <div className="text-xs font-bold flex items-center gap-1 text-slate-900">
+                            ✅ ตรวจแค่อนุมัติ / ไม่อนุมัติ
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                            อนุมัติ หรือ ส่งกลับแก้ไข ไม่ต้องให้คะแนนรูบริก เหมาะสำหรับแผนย่อ หรือเอกสารส่งตามรอบ
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
                   <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
                     <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700">
                       <input
@@ -885,6 +953,18 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                             <span className="text-xs text-slate-500 font-medium">
                               ภาคเรียนที่ {dl.semester}/{dl.academic_year}
                             </span>
+                            {/* Evaluation Mode Badge */}
+                            {(dl.evaluation_type || 'rubric_score') === 'approval_only' ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                <CheckCircle2 className="w-3 h-3 text-indigo-600" />
+                                <span>ตรวจแค่อนุมัติ/ไม่อนุมัติ</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                <Award className="w-3 h-3 text-amber-600" />
+                                <span>ตรวจแบบให้คะแนน (รูบริก 100)</span>
+                              </span>
+                            )}
                             {isPastDeadline ? (
                               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
                                 <AlertTriangle className="w-3 h-3 text-rose-600" />
@@ -967,6 +1047,52 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                                     }
                                     className="px-2.5 py-1.5 border border-rose-300 rounded-lg text-xs bg-white font-bold text-rose-900"
                                   />
+                                </div>
+                              </div>
+
+                              {/* Inline evaluation type switcher */}
+                              <div className="sm:col-span-2 p-3 bg-white rounded-xl border border-amber-300">
+                                <span className="text-xs font-bold text-slate-800 block mb-1.5">
+                                  รูปแบบการตรวจประเมินของงานนี้:
+                                </span>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                  <label
+                                    className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-all ${
+                                      (dl.evaluation_type || 'rubric_score') === 'rubric_score'
+                                        ? 'bg-amber-50 border-amber-400 font-bold text-amber-950 shadow-2xs'
+                                        : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                                    }`}
+                                  >
+                                    <input
+                                      type="radio"
+                                      name={`eval_${dl.id}`}
+                                      checked={(dl.evaluation_type || 'rubric_score') === 'rubric_score'}
+                                      onChange={() =>
+                                        handleUpdateDeadlineItem(dl.id, { evaluation_type: 'rubric_score' })
+                                      }
+                                      className="text-amber-600 focus:ring-amber-500"
+                                    />
+                                    <span>🏆 ตรวจแบบให้คะแนน (รูบริก 100)</span>
+                                  </label>
+
+                                  <label
+                                    className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-all ${
+                                      dl.evaluation_type === 'approval_only'
+                                        ? 'bg-indigo-50 border-indigo-400 font-bold text-indigo-950 shadow-2xs'
+                                        : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                                    }`}
+                                  >
+                                    <input
+                                      type="radio"
+                                      name={`eval_${dl.id}`}
+                                      checked={dl.evaluation_type === 'approval_only'}
+                                      onChange={() =>
+                                        handleUpdateDeadlineItem(dl.id, { evaluation_type: 'approval_only' })
+                                      }
+                                      className="text-indigo-600 focus:ring-indigo-500"
+                                    />
+                                    <span>✅ ตรวจแค่อนุมัติ/ไม่อนุมัติ (ไม่คิดคะแนน)</span>
+                                  </label>
                                 </div>
                               </div>
 

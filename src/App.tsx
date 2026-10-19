@@ -1439,6 +1439,7 @@ export default function App() {
           onClose={() => setSelectedPlanForReview(null)}
           onSaveReview={handleSaveReview}
           statusConfigs={statusConfigs}
+          deadlineConfigs={deadlineConfigs}
         />
       )}
 
