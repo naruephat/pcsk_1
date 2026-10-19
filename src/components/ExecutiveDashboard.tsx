@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Teacher, LessonPlan, isTeacherAdmin, PlanTypeDeadlineConfig } from '../types';
 import { formatGoogleDriveImageUrl, getInitials } from '../utils/imageUtils';
 import { getSavedDeadlineConfigs } from '../utils/deadlineUtils';
+import { DataDrivenOrgView } from './DataDrivenOrgView';
 import {
   BarChart3,
   PieChart,
@@ -27,6 +28,7 @@ import {
   ArrowUpRight,
   X,
   FileCheck2,
+  BrainCircuit,
 } from 'lucide-react';
 
 interface ExecutiveDashboardProps {
@@ -34,6 +36,8 @@ interface ExecutiveDashboardProps {
   plans: LessonPlan[];
   currentTeacher: Teacher;
   deadlineConfigs?: PlanTypeDeadlineConfig[];
+  executiveMode?: 'standard' | 'ddo';
+  onExecutiveModeChange?: (mode: 'standard' | 'ddo') => void;
   onOpenPlan?: (plan: LessonPlan) => void;
   onOpenDeadlineManager?: () => void;
   onOpenDirectoryModal?: () => void;
@@ -44,10 +48,38 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   plans,
   currentTeacher,
   deadlineConfigs,
+  executiveMode = 'standard',
+  onExecutiveModeChange,
   onOpenPlan,
   onOpenDeadlineManager,
   onOpenDirectoryModal,
 }) => {
+  // Mode switcher: standard overview vs DDO
+  const [currentMode, setCurrentMode] = useState<'standard' | 'ddo'>(executiveMode);
+
+  useEffect(() => {
+    if (executiveMode) {
+      setCurrentMode(executiveMode);
+    }
+  }, [executiveMode]);
+
+  useEffect(() => {
+    const handleSwitch = (e: CustomEvent<{ mode: 'standard' | 'ddo' }>) => {
+      if (e.detail?.mode) {
+        setCurrentMode(e.detail.mode);
+        if (onExecutiveModeChange) onExecutiveModeChange(e.detail.mode);
+      }
+    };
+    window.addEventListener('switch-executive-mode', handleSwitch as EventListener);
+    return () => window.removeEventListener('switch-executive-mode', handleSwitch as EventListener);
+  }, [onExecutiveModeChange]);
+
+  const handleModeChange = (newMode: 'standard' | 'ddo') => {
+    setCurrentMode(newMode);
+    if (onExecutiveModeChange) {
+      onExecutiveModeChange(newMode);
+    }
+  };
   // Filters
   const [selectedArea, setSelectedArea] = useState<string>('ทั้งหมด');
   const [selectedStatus, setSelectedStatus] = useState<'all' | 'ontime' | 'late' | 'pending'>('all');
@@ -313,8 +345,60 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         <div className="absolute bottom-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
       </div>
 
-      {/* Top 4 KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+      {/* Executive View Mode Switcher: Standard Operational vs Data-Driven Organization */}
+      <div className="bg-white rounded-2xl p-2 sm:p-2.5 border border-slate-200/90 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 rounded-xl">
+          <button
+            onClick={() => handleModeChange('standard')}
+            className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              currentMode === 'standard'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4 text-indigo-600" />
+            <span>📊 ภาพรวมการดำเนินงาน (Operations Overview)</span>
+          </button>
+
+          <button
+            onClick={() => handleModeChange('ddo')}
+            className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              currentMode === 'ddo'
+                ? 'bg-gradient-to-r from-indigo-900 via-indigo-950 to-slate-950 text-white shadow-xs'
+                : 'text-slate-600 hover:text-indigo-950'
+            }`}
+          >
+            <BrainCircuit className="w-4 h-4 text-indigo-400" />
+            <span>🧠 วิเคราะห์ Data-Driven Organization</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500 text-slate-950 font-black">
+              DDO
+            </span>
+          </button>
+        </div>
+
+        <div className="text-xs text-slate-500 px-2 flex items-center gap-1.5">
+          <span className="font-semibold text-slate-700">มุมมอง:</span>
+          <span className="font-bold text-indigo-600">
+            {currentMode === 'ddo'
+              ? 'การวินิจฉัยจุดติดขัด · เรดาร์ความเสี่ยง · ข้อเสนอแนะเชิงยุทธศาสตร์'
+              : 'สถิติการส่งงาน · ราย 8 กลุ่มสาระ · รายการครูรายบุคคล'}
+          </span>
+        </div>
+      </div>
+
+      {currentMode === 'ddo' ? (
+        <DataDrivenOrgView
+          teachers={teachers}
+          plans={plans}
+          currentTeacher={currentTeacher}
+          deadlineConfigs={deadlineConfigs}
+          onOpenPlan={onOpenPlan}
+          onOpenDirectoryModal={onOpenDirectoryModal}
+        />
+      ) : (
+        <>
+          {/* Top 4 KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
         {/* KPI 1: Submission Rate */}
         <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm relative overflow-hidden group hover:border-indigo-300 hover:shadow-md transition-all">
           <div className="flex items-center justify-between">
@@ -1240,6 +1324,8 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           </div>
         </div>
       </div>
+        </>
+      )}
 
       {/* PRINTABLE EXECUTIVE REPORT MODAL */}
       {isPrintModalOpen && (

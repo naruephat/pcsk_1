@@ -82,6 +82,7 @@ import {
   Clock,
   ChevronRight,
   Upload,
+  BrainCircuit,
 } from 'lucide-react';
 
 export default function App() {
@@ -94,6 +95,7 @@ export default function App() {
   // Filters & Views
   const [viewTab, setViewTab] = useState<'all' | 'my' | 'pending_review' | 'approved' | 'needs_revision'>('all');
   const [mainView, setMainView] = useState<'plans' | 'executive'>('plans');
+  const [executiveMode, setExecutiveMode] = useState<'standard' | 'ddo'>('standard');
   const [planDisplayMode, setPlanDisplayMode] = useState<'board' | 'table'>('board');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -333,40 +335,62 @@ export default function App() {
     });
   };
 
-  // Plan creation (auto-updates in DB)
-  const handleCreatePlan = async (newPlan: LessonPlan) => {
-    const res = await savePlanRecord(newPlan);
-    setPlans((prev) => [newPlan, ...prev]);
+  // Plan creation (supports single or multiple lesson plans)
+  const handleCreatePlan = async (newPlanOrPlans: LessonPlan | LessonPlan[]) => {
+    const plansList = Array.isArray(newPlanOrPlans) ? newPlanOrPlans : [newPlanOrPlans];
+    if (plansList.length === 0) return { success: true, isSupabase: false };
+
+    let lastRes: any = { success: true, isSupabase: false };
+    for (const plan of plansList) {
+      lastRes = await savePlanRecord(plan);
+    }
+    setPlans((prev) => [...plansList, ...prev]);
     await syncWithDatabase(true);
 
+    const count = plansList.length;
     if (!isAdmin) {
       setToastNotice({
         type: 'success',
-        message: 'ส่งแผนการสอนสำเร็จเรียบร้อยแล้ว!',
-        details: 'ระบบได้บันทึกข้อมูลและส่งแผนการสอนเข้าสู่ระบบเรียบร้อยแล้ว',
+        message:
+          count > 1
+            ? `ส่งแผนการสอนสำเร็จทั้งหมด ${count} วิชา/รายการแล้ว!`
+            : 'ส่งแผนการสอนสำเร็จเรียบร้อยแล้ว!',
+        details:
+          count > 1
+            ? `ระบบได้บันทึกข้อมูลและส่งเอกสารแผนการจัดการเรียนรู้ ${count} วิชาเข้าสู่ระบบเรียบร้อยแล้ว`
+            : 'ระบบได้บันทึกข้อมูลและส่งแผนการสอนเข้าสู่ระบบเรียบร้อยแล้ว',
       });
     } else {
-      if (!res.isSupabase) {
+      if (!lastRes.isSupabase) {
         setToastNotice({
           type: 'warning',
-          message: 'บันทึกแผนลงในเครื่อง (Local Storage) แล้ว',
-          details: '⚠️ ยังไม่ได้เชื่อมต่อ Supabase Database จึงยังไม่เข้าตาราง SQL ในฐานข้อมูลภายนอก กรุณาคลิก "ตั้งค่า Supabase" เพื่อเชื่อมต่อและรันคำสั่งสร้างตาราง',
+          message:
+            count > 1
+              ? `บันทึกแผน ${count} รายการลงในเครื่อง (Local Storage) แล้ว`
+              : 'บันทึกแผนลงในเครื่อง (Local Storage) แล้ว',
+          details:
+            '⚠️ ยังไม่ได้เชื่อมต่อ Supabase Database จึงยังไม่เข้าตาราง SQL ในฐานข้อมูลภายนอก กรุณาคลิก "ตั้งค่า Supabase" เพื่อเชื่อมต่อและรันคำสั่งสร้างตาราง',
         });
-      } else if (!res.success) {
+      } else if (!lastRes.success) {
         setToastNotice({
           type: 'error',
           message: 'บันทึกในเครื่องแล้ว แต่ Supabase SQL บันทึกไม่สำเร็จ',
-          details: res.error || 'โปรดตรวจสอบว่าได้สร้างตาราง lesson_plans ใน Supabase SQL แล้วหรือไม่',
+          details:
+            lastRes.error ||
+            'โปรดตรวจสอบว่าได้สร้างตาราง lesson_plans ใน Supabase SQL แล้วหรือไม่',
         });
       } else {
         setToastNotice({
           type: 'success',
-          message: 'ส่งแผนการสอนสำเร็จและบันทึกลงตาราง Supabase SQL เรียบร้อยแล้ว!',
+          message:
+            count > 1
+              ? `ส่งแผนการสอนสำเร็จ ${count} รายการ และบันทึกลงตาราง Supabase SQL เรียบร้อยแล้ว!`
+              : 'ส่งแผนการสอนสำเร็จและบันทึกลงตาราง Supabase SQL เรียบร้อยแล้ว!',
           details: 'ข้อมูลบนเว็บไซต์และในฐานข้อมูล SQL อัปเดตตรงกันทันที',
         });
       }
     }
-    return res;
+    return lastRes;
   };
 
   // Plan review update (auto-updates in DB)
@@ -666,6 +690,8 @@ export default function App() {
           isAdmin={isAdmin}
           mainView={mainView}
           setMainView={setMainView}
+          executiveMode={executiveMode}
+          setExecutiveMode={setExecutiveMode}
           viewTab={viewTab}
           setViewTab={setViewTab}
           pendingAssignmentsCount={pendingAssignmentsCount}
@@ -705,6 +731,8 @@ export default function App() {
               isAdmin={isAdmin}
               mainView={mainView}
               setMainView={setMainView}
+              executiveMode={executiveMode}
+              setExecutiveMode={setExecutiveMode}
               viewTab={viewTab}
               setViewTab={setViewTab}
               pendingAssignmentsCount={pendingAssignmentsCount}
@@ -963,19 +991,37 @@ export default function App() {
         {/* View Switcher for Admins & Leadership */}
         {isAdmin && (
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 bg-white p-2.5 sm:p-3 rounded-2xl border border-slate-200/90 shadow-xs">
-            <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
               <button
-                onClick={() => setMainView('executive')}
+                onClick={() => {
+                  setMainView('executive');
+                  setExecutiveMode('standard');
+                }}
                 className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 sm:gap-2 transition-all cursor-pointer ${
-                  mainView === 'executive'
+                  mainView === 'executive' && executiveMode === 'standard'
                     ? 'bg-gradient-to-r from-blue-700 via-indigo-700 to-indigo-800 text-white shadow-md'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                 }`}
               >
                 <BarChart3 className="w-4 h-4 text-emerald-300" />
-                <span className="truncate">แดชบอร์ดบริหาร</span>
-                <span className="hidden sm:inline text-[10px] px-2 py-0.5 rounded-full bg-emerald-400 text-slate-950 font-extrabold ml-1">
-                  Executive
+                <span className="truncate">ภาพรวมผู้บริหาร</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setMainView('executive');
+                  setExecutiveMode('ddo');
+                }}
+                className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 sm:gap-2 transition-all cursor-pointer ${
+                  mainView === 'executive' && executiveMode === 'ddo'
+                    ? 'bg-gradient-to-r from-indigo-900 via-indigo-950 to-slate-950 text-white shadow-md border border-indigo-400/40'
+                    : 'text-slate-600 hover:text-indigo-950 hover:bg-indigo-50/60'
+                }`}
+              >
+                <BrainCircuit className="w-4 h-4 text-indigo-400" />
+                <span className="truncate">Data-Driven Org</span>
+                <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500 text-slate-950 font-black">
+                  DDO
                 </span>
               </button>
 
@@ -995,7 +1041,11 @@ export default function App() {
             <div className="text-xs text-slate-500 font-medium px-1 sm:px-2 flex items-center gap-1.5">
               <span>มุมมอง:</span>
               <span className="font-bold text-indigo-600 truncate">
-                {mainView === 'executive' ? '📊 แดชบอร์ดภาพรวมและกราฟ' : '📑 รายการแผนและการตรวจประเมิน'}
+                {mainView === 'executive'
+                  ? executiveMode === 'ddo'
+                    ? '🧠 องค์กรขับเคลื่อนด้วยข้อมูล (Data-Driven Organization)'
+                    : '📊 แดชบอร์ดภาพรวมและกราฟ'
+                  : '📑 รายการแผนและการตรวจประเมิน'}
               </span>
             </div>
           </div>
@@ -1048,6 +1098,8 @@ export default function App() {
             plans={plans}
             currentTeacher={currentTeacher}
             deadlineConfigs={deadlineConfigs}
+            executiveMode={executiveMode}
+            onExecutiveModeChange={setExecutiveMode}
             onOpenPlan={(plan) => setSelectedPlanForReview(plan)}
             onOpenDeadlineManager={() => setIsDeadlineModalOpen(true)}
             onOpenDirectoryModal={() => setIsDirectoryModalOpen(true)}

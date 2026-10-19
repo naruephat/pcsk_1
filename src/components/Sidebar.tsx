@@ -21,6 +21,7 @@ import {
   X,
   ChevronRight,
   ExternalLink,
+  BrainCircuit,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -28,6 +29,8 @@ interface SidebarProps {
   isAdmin: boolean;
   mainView: 'executive' | 'plans';
   setMainView: (view: 'executive' | 'plans') => void;
+  executiveMode?: 'standard' | 'ddo';
+  setExecutiveMode?: (mode: 'standard' | 'ddo') => void;
   viewTab: string;
   setViewTab: (tab: any) => void;
   pendingAssignmentsCount?: number;
@@ -52,6 +55,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isAdmin,
   mainView,
   setMainView,
+  executiveMode = 'standard',
+  setExecutiveMode,
   viewTab,
   setViewTab,
   pendingAssignmentsCount = 0,
@@ -303,25 +308,49 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
 
             <div className="space-y-1">
-              {/* แดชบอร์ดบริหาร */}
+              {/* แดชบอร์ดภาพรวมผู้บริหาร */}
               <button
                 onClick={() =>
                   handleNavClick(() => {
                     setMainView('executive');
+                    if (setExecutiveMode) setExecutiveMode('standard');
                   })
                 }
                 className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl transition-all cursor-pointer ${
-                  mainView === 'executive'
+                  mainView === 'executive' && executiveMode === 'standard'
                     ? 'bg-amber-500/15 text-amber-300 font-bold border border-amber-500/30'
                     : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
                 }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <BarChart3 className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span className="truncate font-medium">แดชบอร์ดฝ่ายบริหาร</span>
+                  <span className="truncate font-medium">แดชบอร์ดภาพรวมผู้บริหาร</span>
                 </div>
                 <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-amber-500 text-slate-950">
                   Stats
+                </span>
+              </button>
+
+              {/* วิเคราะห์ Data-Driven Org (DDO) */}
+              <button
+                onClick={() =>
+                  handleNavClick(() => {
+                    setMainView('executive');
+                    if (setExecutiveMode) setExecutiveMode('ddo');
+                  })
+                }
+                className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl transition-all cursor-pointer ${
+                  mainView === 'executive' && executiveMode === 'ddo'
+                    ? 'bg-indigo-500/25 text-indigo-300 font-bold border border-indigo-400/40 shadow-xs'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <BrainCircuit className="w-4 h-4 text-indigo-400 shrink-0" />
+                  <span className="truncate font-medium">วิเคราะห์ Data-Driven Org</span>
+                </div>
+                <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-indigo-500 text-white shadow-xs">
+                  DDO
                 </span>
               </button>
 
