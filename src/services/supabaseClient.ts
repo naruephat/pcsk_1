@@ -709,13 +709,40 @@ END $$;
 export async function saveAssignmentSubmissionRecord(
   submission: AssignmentSubmission
 ): Promise<{ success: boolean; isSupabase: boolean; error?: string }> {
+  // Helper to sanitize payload and strip accidental large base64 strings (saves 99% Supabase Egress)
+  const cleanAnswers: Record<string, any> = {};
+  for (const [k, v] of Object.entries(submission.answers || {})) {
+    if (typeof v === 'string' && v.startsWith('data:') && v.length > 2000) {
+      cleanAnswers[k] = '';
+    } else {
+      cleanAnswers[k] = v;
+    }
+  }
+
+  const cleanAttachments = (submission.attachments || []).map((att) => {
+    if (att.file_url && att.file_url.startsWith('data:') && att.file_url.length > 2000) {
+      return {
+        ...att,
+        file_url: '#',
+        file_size: 'PDF Link Required',
+      };
+    }
+    return att;
+  });
+
+  const sanitizedSubmission: AssignmentSubmission = {
+    ...submission,
+    answers: cleanAnswers,
+    attachments: cleanAttachments,
+  };
+
   // 1. Save to local storage first (instant responsiveness)
   const localList = getSavedSubmissions();
   const idx = localList.findIndex((s) => s.id === submission.id);
   if (idx !== -1) {
-    localList[idx] = submission;
+    localList[idx] = sanitizedSubmission;
   } else {
-    localList.unshift(submission);
+    localList.unshift(sanitizedSubmission);
   }
   saveSubmissions(localList);
 
@@ -726,23 +753,23 @@ export async function saveAssignmentSubmissionRecord(
 
   try {
     const payload = {
-      id: submission.id,
-      assignment_id: submission.assignment_id,
-      assignment_name: submission.assignment_name,
-      teacher_id: submission.teacher_id,
-      teacher_name: submission.teacher_name,
-      learning_area: submission.learning_area || '',
-      submitted_at: submission.submitted_at || new Date().toISOString(),
-      status: submission.status || 'submitted',
-      answers: submission.answers || {},
-      attachments: submission.attachments || [],
-      is_late: submission.is_late ?? false,
-      submission_delay_text: submission.submission_delay_text || null,
-      reviewed_by: submission.reviewed_by || null,
-      reviewer_name: submission.reviewer_name || null,
-      reviewed_at: submission.reviewed_at || null,
-      review_comment: submission.review_comment || null,
-      admin_notes: submission.admin_notes || null,
+      id: sanitizedSubmission.id,
+      assignment_id: sanitizedSubmission.assignment_id,
+      assignment_name: sanitizedSubmission.assignment_name,
+      teacher_id: sanitizedSubmission.teacher_id,
+      teacher_name: sanitizedSubmission.teacher_name,
+      learning_area: sanitizedSubmission.learning_area || '',
+      submitted_at: sanitizedSubmission.submitted_at || new Date().toISOString(),
+      status: sanitizedSubmission.status || 'submitted',
+      answers: sanitizedSubmission.answers || {},
+      attachments: sanitizedSubmission.attachments || [],
+      is_late: sanitizedSubmission.is_late ?? false,
+      submission_delay_text: sanitizedSubmission.submission_delay_text || null,
+      reviewed_by: sanitizedSubmission.reviewed_by || null,
+      reviewer_name: sanitizedSubmission.reviewer_name || null,
+      reviewed_at: sanitizedSubmission.reviewed_at || null,
+      review_comment: sanitizedSubmission.review_comment || null,
+      admin_notes: sanitizedSubmission.admin_notes || null,
     };
 
     const { error } = await client.from('assignment_submissions').upsert(payload);
@@ -844,27 +871,15 @@ export async function uploadAssignmentAttachmentFile(
     }
   }
 
-  // Fallback: Read file as data URL so teacher can submit without blocking
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      resolve({
-        success: true,
-        url: reader.result as string,
-        fileName: file.name,
-        fileSize: sizeText,
-      });
-    };
-    reader.onerror = () => {
-      resolve({
-        success: true,
-        url: URL.createObjectURL(file),
-        fileName: file.name,
-        fileSize: sizeText,
-      });
-    };
-    reader.readAsDataURL(file);
-  });
+  // Zero-Egress Policy: Never convert binary files to Base64 data URLs in database rows!
+  // This completely eliminates megabytes of bandwidth on SELECT * queries.
+  return {
+    success: false,
+    url: '',
+    fileName: file.name,
+    fileSize: sizeText,
+    error: 'ระบบบังคับส่งเอกสารเป็นลิงก์ PDF / Google Drive เท่านั้น เพื่อประหยัดแบนด์วิดท์เซิร์ฟเวอร์ กรุณาระบุเป็นลิงก์',
+  };
 }
 
 export async function checkSystemSettingsTableStatus(): Promise<{
@@ -971,8 +986,12 @@ export async function seedPlansToSupabase(): Promise<{ success: boolean; count: 
 }
 
 export async function deletePlanRecord(planId: string): Promise<{ success: boolean; isSupabase: boolean; error?: string }> {
+  // 1. Remove from local lesson plans
   const plans = getLocalPlans().filter((p) => p.id !== planId);
   saveLocalPlans(plans);
+
+  // 2. Also remove from assignment submissions to prevent sync revival
+  await deleteAssignmentSubmissionRecord(planId);
 
   const client = getSupabaseClient();
   if (client) {

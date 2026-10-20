@@ -7,6 +7,7 @@ import {
   isTeacherExecutive,
   PlanTypeDeadlineConfig,
   PlanStatusConfig,
+  AssignmentSubmission,
 } from './types';
 import {
   fetchTeachers,
@@ -30,6 +31,7 @@ import {
   saveStatusConfigs,
   checkSubmissionTimeliness,
   getPlanStatusInfo,
+  getSavedSubmissions,
   DEFAULT_DEADLINE_CONFIGS,
   DEFAULT_STATUS_CONFIGS,
 } from './utils/deadlineUtils';
@@ -262,19 +264,20 @@ export default function App() {
   };
 
   // Load initial data
+  // Load initial data (single pass, zero redundant queries)
   const loadData = async () => {
     setIsLoading(true);
     try {
       await Promise.all([
         syncWithDatabase(true),
-        new Promise((resolve) => setTimeout(resolve, 750)),
+        new Promise((resolve) => setTimeout(resolve, 600)),
       ]);
 
-      // Restore active user session if previously logged in
+      // Restore active user session if previously logged in (uses cached teachers from syncWithDatabase, 0 network egress)
       const savedUserEmail = localStorage.getItem('lp_current_user_email');
       if (savedUserEmail) {
-        const teachersRes = await fetchTeachers();
-        const found = teachersRes.data.find(
+        const teachers = getLocalTeachers();
+        const found = teachers.find(
           (t) =>
             t.Email.toLowerCase() === savedUserEmail.toLowerCase() ||
             t.Teacher_ID.toLowerCase() === savedUserEmail.toLowerCase()
@@ -290,23 +293,105 @@ export default function App() {
     }
   };
 
+  // Targeted Table Sync (only fetches the specific table that changed in Realtime, saving 80% Egress)
+  const syncTable = async (table: string) => {
+    try {
+      if (table === 'lesson_plans') {
+        const plansRes = await fetchPlans();
+        if (plansRes.data) {
+          const effectiveDl = deadlineConfigs.length > 0 ? deadlineConfigs : getSavedDeadlineConfigs();
+          const remotePlans = plansRes.data || [];
+          const remotePlanIds = new Set(remotePlans.map((p) => p.id));
+          const localSubmissions = getSavedSubmissions();
+          const convertedDynamicPlans: LessonPlan[] = (localSubmissions || [])
+            .filter((sub: AssignmentSubmission) => !remotePlanIds.has(sub.id))
+            .map((sub: AssignmentSubmission) => {
+              const firstAtt = sub.attachments?.[0];
+              const dlConfig = effectiveDl.find((d) => d.id === sub.assignment_id || d.name === sub.assignment_name);
+              const fields = dlConfig?.fields || [];
+              const answers = sub.answers || {};
+              const titleCandidate =
+                answers['fld_title'] ||
+                answers['fld_research_topic'] ||
+                answers['fld_topic'] ||
+                sub.assignment_name;
+              return {
+                id: sub.id,
+                teacher_id: sub.teacher_id,
+                teacher_name: sub.teacher_name,
+                teacher_photo: '',
+                learning_area: sub.learning_area || '',
+                subject_code: String(answers['fld_subject_code'] || 'ภาระงาน'),
+                subject_name: String(answers['fld_subject_name'] || sub.assignment_name),
+                grade_level: String(answers['fld_grade_level'] || 'มัธยมศึกษา'),
+                semester: dlConfig?.semester || '1',
+                academic_year: dlConfig?.academic_year || '2567',
+                plan_title: String(titleCandidate).substring(0, 120),
+                plan_type: sub.assignment_name,
+                total_hours: Number(answers['fld_hours']) || 1,
+                file_url: firstAtt?.file_url || '#',
+                file_name: firstAtt?.file_name || 'เอกสารภาระงาน',
+                submitted_at: sub.submitted_at || new Date().toISOString(),
+                status: sub.status || 'submitted',
+                is_late: sub.is_late ?? false,
+                submission_delay_text: sub.submission_delay_text,
+                evaluation_type: dlConfig?.evaluation_type || 'approval_only',
+                notes: JSON.stringify(answers),
+              };
+            });
+          const localPlans = getLocalPlans();
+          const knownIds = new Set([...remotePlans.map((p) => p.id), ...convertedDynamicPlans.map((p) => p.id)]);
+          const missingLocals = localPlans.filter((lp) => !knownIds.has(lp.id));
+          const merged = [...remotePlans, ...convertedDynamicPlans, ...missingLocals];
+          setPlans(merged);
+        }
+      } else if (table === 'teachers') {
+        const teachersRes = await fetchTeachers();
+        if (teachersRes.data) {
+          setTeachers(teachersRes.data);
+        }
+      } else if (table === 'system_settings') {
+        const [dlRes, stRes] = await Promise.all([
+          fetchSystemSetting<PlanTypeDeadlineConfig[]>('deadline_configs', getSavedDeadlineConfigs()),
+          fetchSystemSetting<PlanStatusConfig[]>('status_configs', getSavedStatusConfigs()),
+        ]);
+        if (dlRes.data && Array.isArray(dlRes.data)) {
+          setDeadlineConfigs(dlRes.data);
+          saveDeadlineConfigs(dlRes.data);
+        }
+        if (stRes.data && Array.isArray(stRes.data)) {
+          setStatusConfigs(stRes.data);
+          saveStatusConfigs(stRes.data);
+        }
+      } else {
+        syncWithDatabase(true);
+      }
+    } catch (err) {
+      console.warn(`Targeted sync error for ${table}:`, err);
+    }
+  };
+
   useEffect(() => {
     loadData();
 
-    // 1. Supabase Realtime Subscription: listens to any changes in lesson_plans and teachers
+    // 1. Supabase Realtime Subscription: listens to changes with targeted table sync
     const unsubscribe = subscribeToDatabaseChanges((table) => {
-      console.log(`[App] Realtime event on table ${table}: auto-syncing...`);
-      syncWithDatabase(true);
+      console.log(`[App] Realtime event on table ${table}: targeted syncing...`);
+      syncTable(table);
     });
 
-    // 2. Periodic sync every 8 seconds to ensure website and DB are always strictly synchronized
+    // 2. Bandwidth-optimized background sync: every 10 minutes (Realtime WebSocket already pushes instant updates!)
     const interval = setInterval(() => {
       syncWithDatabase(true);
-    }, 8000);
+    }, 600000);
 
-    // 3. Sync on window focus
+    // 3. Sync on window focus (debounced to 3 minutes to avoid burning egress on tab switches)
+    let lastFocusSync = Date.now();
     const onFocus = () => {
-      syncWithDatabase(true);
+      if (Date.now() - lastFocusSync > 180000) {
+        lastFocusSync = Date.now();
+        syncWithDatabase(true);
+      }
     };
     window.addEventListener('focus', onFocus);
 

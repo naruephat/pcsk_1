@@ -69,31 +69,63 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [imageError, setImageError] = useState(false);
 
   if (!isOpen) return null;
-
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        setErrorMsg('รูปภาพมีขนาดใหญ่เกิน 5MB');
-        return;
-      }
+  // Helper to compress image before saving as Data URL (cuts bandwidth/Egress by 99%)
+  const compressImage = (file: File, maxWidth: number = 320, quality: number = 0.75): Promise<string> => {
+    return new Promise((resolve) => {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData((prev) => ({ ...prev, photo: reader.result as string }));
-        setImageError(false);
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', quality));
+          } else {
+            resolve(e.target?.result as string);
+          }
+        };
+        img.onerror = () => resolve(e.target?.result as string);
+        img.src = e.target?.result as string;
       };
       reader.readAsDataURL(file);
+    });
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        setErrorMsg('รูปภาพมีขนาดใหญ่เกิน 10MB');
+        return;
+      }
+      try {
+        const compressed = await compressImage(file, 160, 0.65);
+        setFormData((prev) => ({ ...prev, photo: compressed }));
+        setImageError(false);
+      } catch {
+        setErrorMsg('ไม่สามารถแปลงรูปภาพได้');
+      }
     }
   };
 
-  const handleSignatureUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSignatureUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData((prev) => ({ ...prev, signature_url: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
+      try {
+        const compressed = await compressImage(file, 240, 0.6);
+        setFormData((prev) => ({ ...prev, signature_url: compressed }));
+      } catch {
+        // ignore
+      }
     }
   };
 

@@ -119,9 +119,15 @@ export const DynamicFormBuilder: React.FC<DynamicFormBuilderProps> = ({
       type,
       label:
         preset?.label ||
-        (type === 'user_profile' ? 'ครูผู้สอน' : `ช่องข้อมูลที่ ${fields.length + 1}`),
+        (type === 'user_profile'
+          ? 'ครูผู้สอน'
+          : type === 'file'
+          ? 'ลิงก์ไฟล์เอกสาร / PDF (Google Drive)'
+          : `ช่องข้อมูลที่ ${fields.length + 1}`),
       description: preset?.description || '',
-      placeholder: preset?.placeholder || '',
+      placeholder:
+        preset?.placeholder ||
+        (type === 'file' ? 'https://drive.google.com/file/d/... หรือลิงก์ตรง .pdf' : ''),
       required: preset?.required ?? true,
       order: fields.length + 1,
       options:
@@ -134,9 +140,11 @@ export const DynamicFormBuilder: React.FC<DynamicFormBuilderProps> = ({
         type === 'file'
           ? {
               max_files: 1,
-              allowed_types: ['.pdf', '.docx', '.doc'],
+              allowed_types: ['.pdf'],
               max_size_mb: 25,
-              submission_mode: 'both',
+              submission_mode: 'link_only',
+              require_link_only: true,
+              allow_link: true,
               ...(preset?.file_config || {}),
             }
           : undefined,
@@ -168,10 +176,15 @@ export const DynamicFormBuilder: React.FC<DynamicFormBuilderProps> = ({
 
         // Auto-initialize file_config if changed to file
         if (updated.type === 'file' && !updated.file_config) {
+          updated.label = updated.label.startsWith('ช่องข้อมูล') ? 'ลิงก์ไฟล์เอกสาร / PDF (Google Drive)' : updated.label;
+          updated.placeholder = updated.placeholder || 'https://drive.google.com/file/d/... หรือลิงก์ตรง .pdf';
           updated.file_config = {
             max_files: 1,
-            allowed_types: ['.pdf', '.docx', '.doc'],
+            allowed_types: ['.pdf'],
             max_size_mb: 25,
+            submission_mode: 'link_only',
+            require_link_only: true,
+            allow_link: true,
           };
         }
 
@@ -1045,38 +1058,91 @@ export const DynamicFormBuilder: React.FC<DynamicFormBuilderProps> = ({
                   )}
 
                   {f.type === 'file' && (
-                    <div className="space-y-2.5">
-                      <div className="border-2 border-dashed border-indigo-200 bg-indigo-50/40 rounded-xl p-3.5 text-center space-y-1">
-                        <Upload className="w-5 h-5 text-indigo-500 mx-auto" />
-                        <p className="text-xs font-bold text-indigo-900">อัปโหลดไฟล์เอกสารจากเครื่อง</p>
-                        <p className="text-[10px] text-slate-500">
-                          นามสกุลที่อนุญาต: {(f.file_config?.allowed_types || []).join(', ') || 'PDF, DOCX'} · สูงสุด{' '}
-                          {f.file_config?.max_size_mb || 25} MB
-                        </p>
-                      </div>
-                      <div className="text-center text-[10px] font-bold text-slate-400">หรือวางลิงก์ PDF / Drive</div>
-                      <div className="flex gap-2">
-                        <input
-                          type="url"
-                          placeholder="https://drive.google.com/file/d/... หรือ ลิงก์ตรง .pdf"
-                          value={previewValues[f.id] || ''}
-                          onChange={(e) => setPreviewValues({ ...previewValues, [f.id]: e.target.value })}
-                          className="flex-1 px-3 py-1.5 border border-slate-300 rounded-xl text-xs bg-white font-mono"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (previewValues[f.id]) {
-                              let url = String(previewValues[f.id]).trim();
-                              if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
-                              window.open(url, '_blank', 'noopener,noreferrer');
-                            }
-                          }}
-                          className="px-2.5 py-1.5 bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs font-semibold"
-                        >
-                          ทดสอบเปิด
-                        </button>
-                      </div>
+                    <div className="space-y-2">
+                      {f.file_config?.submission_mode === 'link_only' || f.file_config?.require_link_only ? (
+                        /* Preview: Link Only Mode */
+                        <div className="space-y-2 p-3 bg-rose-50/70 rounded-xl border border-rose-200">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-rose-900 flex items-center gap-1.5">
+                              <LinkIcon className="w-3.5 h-3.5 text-rose-600" />
+                              <span>วางลิงก์ไฟล์ PDF / Google Drive</span>
+                            </span>
+                            <span className="text-[10px] bg-rose-100 text-rose-800 font-bold px-2 py-0.5 rounded">
+                              🔗 บังคับเฉพาะลิงก์ PDF
+                            </span>
+                          </div>
+                          <div className="flex gap-2">
+                            <input
+                              type="url"
+                              placeholder={f.placeholder || 'https://drive.google.com/file/d/... หรือ ลิงก์ตรง .pdf'}
+                              value={previewValues[f.id] || ''}
+                              onChange={(e) => setPreviewValues({ ...previewValues, [f.id]: e.target.value })}
+                              className="flex-1 px-3 py-1.5 border border-rose-300 rounded-xl text-xs bg-white font-mono focus:ring-1 focus:ring-rose-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (previewValues[f.id]) {
+                                  let url = String(previewValues[f.id]).trim();
+                                  if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+                                  window.open(url, '_blank', 'noopener,noreferrer');
+                                }
+                              }}
+                              className="px-2.5 py-1.5 bg-white text-rose-700 border border-rose-300 rounded-xl text-xs font-semibold hover:bg-rose-50 cursor-pointer"
+                            >
+                              ทดสอบเปิด
+                            </button>
+                          </div>
+                          <span className="text-[10px] text-slate-500 block">
+                            * ครูผู้ส่งจะต้องวางลิงก์เท่านั้น ไม่มีปุ่มอัปโหลดไฟล์ตรงจากเครื่อง
+                          </span>
+                        </div>
+                      ) : f.file_config?.submission_mode === 'file_only' ? (
+                        /* Preview: File Only Mode */
+                        <div className="border-2 border-dashed border-indigo-200 bg-indigo-50/40 rounded-xl p-3.5 text-center space-y-1">
+                          <Upload className="w-5 h-5 text-indigo-500 mx-auto" />
+                          <p className="text-xs font-bold text-indigo-900">อัปโหลดไฟล์เอกสารจากเครื่องเท่านั้น</p>
+                          <p className="text-[10px] text-slate-500">
+                            นามสกุลที่อนุญาต: {(f.file_config?.allowed_types || []).join(', ') || 'PDF, DOCX'} · สูงสุด{' '}
+                            {f.file_config?.max_size_mb || 25} MB
+                          </p>
+                        </div>
+                      ) : (
+                        /* Preview: Both Allowed Mode */
+                        <div className="space-y-2">
+                          <div className="border-2 border-dashed border-indigo-200 bg-indigo-50/40 rounded-xl p-3 text-center space-y-1">
+                            <Upload className="w-4 h-4 text-indigo-500 mx-auto" />
+                            <p className="text-xs font-bold text-indigo-900">อัปโหลดไฟล์เอกสารจากเครื่อง</p>
+                            <p className="text-[10px] text-slate-500">
+                              นามสกุลที่อนุญาต: {(f.file_config?.allowed_types || []).join(', ') || 'PDF, DOCX'} · สูงสุด{' '}
+                              {f.file_config?.max_size_mb || 25} MB
+                            </p>
+                          </div>
+                          <div className="text-center text-[10px] font-bold text-slate-400">หรือวางลิงก์ PDF / Drive</div>
+                          <div className="flex gap-2">
+                            <input
+                              type="url"
+                              placeholder="https://drive.google.com/file/d/... หรือ ลิงก์ตรง .pdf"
+                              value={previewValues[f.id] || ''}
+                              onChange={(e) => setPreviewValues({ ...previewValues, [f.id]: e.target.value })}
+                              className="flex-1 px-3 py-1.5 border border-slate-300 rounded-xl text-xs bg-white font-mono"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (previewValues[f.id]) {
+                                  let url = String(previewValues[f.id]).trim();
+                                  if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+                                  window.open(url, '_blank', 'noopener,noreferrer');
+                                }
+                              }}
+                              className="px-2.5 py-1.5 bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs font-semibold cursor-pointer"
+                            >
+                              ทดสอบเปิด
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

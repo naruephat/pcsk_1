@@ -99,6 +99,18 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
           initial[f.id] = '';
         }
       });
+
+      const initialModes: Record<string, 'upload' | 'link'> = {};
+      fields.forEach((f) => {
+        if (f.type === 'file') {
+          if (f.file_config?.submission_mode === 'link_only' || f.file_config?.require_link_only) {
+            initialModes[f.id] = 'link';
+          } else {
+            initialModes[f.id] = 'upload';
+          }
+        }
+      });
+      setFileInputModes(initialModes);
       setFormValues(initial);
       setAttachments([]);
     }
@@ -211,14 +223,42 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
 
     // 1. Validate required fields
     for (const f of fields) {
-      if (f.required) {
-        if (f.type === 'file') {
-          const hasFile = attachments.some((a) => a.field_id === f.id) || formValues[f.id];
-          if (!hasFile) {
-            setError(`กรุณาแนบไฟล์ในช่อง: "${f.label}"`);
+      if (f.type === 'file') {
+        const rawVal = String(formValues[f.id] || '').trim();
+        if (f.required && !rawVal) {
+          setError(`[${f.label}] กรุณาระบุลิงก์ไฟล์ PDF (เช่น ลิงก์ Google Drive หรือลิงก์ที่ลงท้ายด้วย .pdf)`);
+          return;
+        }
+
+        if (rawVal) {
+          let finalUrl = rawVal;
+          if (!/^https?:\/\//i.test(finalUrl)) {
+            finalUrl = 'https://' + finalUrl;
+          }
+
+          try {
+            new URL(finalUrl);
+          } catch {
+            setError(`[${f.label}] รูปแบบลิงก์ไม่ถูกต้อง กรุณากรอก URL เช่น https://drive.google.com/...`);
             return;
           }
-        } else if (f.type === 'checkbox') {
+
+          const isGoogleDrive = /drive\.google\.com|docs\.google\.com/i.test(finalUrl);
+          const isCloudDoc =
+            /onedrive|1drv\.ms|dropbox\.com|sharepoint\.com|supabase\.co|storage\.googleapis\.com|canva\.com|icloud\.com/i.test(
+              finalUrl
+            );
+          const isPdfExt = /\.pdf(\?|$|#)/i.test(finalUrl);
+
+          if (!isPdfExt && !isGoogleDrive && !isCloudDoc) {
+            setError(
+              `[${f.label}] บังคับส่งเฉพาะลิงก์ไฟล์ PDF เท่านั้น! (เช่น ลิงก์ไฟล์ PDF บน Google Drive หรือลิงก์ที่ลงท้ายด้วย .pdf)`
+            );
+            return;
+          }
+        }
+      } else if (f.required) {
+        if (f.type === 'checkbox') {
           const val = formValues[f.id];
           if (!Array.isArray(val) || val.length === 0) {
             setError(`กรุณาเลือกตัวเลือกอย่างน้อย 1 ข้อในช่อง: "${f.label}"`);
@@ -620,103 +660,55 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
                           </div>
                         ))}
 
-                      {/* Method Switcher Tabs: Upload from device VS Paste PDF Link */}
-                      <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl max-w-sm text-xs font-semibold">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setFileInputModes((prev) => ({ ...prev, [field.id]: 'upload' }))
-                          }
-                          className={`flex-1 py-1.5 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                            (fileInputModes[field.id] || 'upload') === 'upload'
-                              ? 'bg-white text-indigo-900 shadow-2xs font-bold'
-                              : 'text-slate-600 hover:text-slate-900'
-                          }`}
-                        >
-                          <Upload className="w-3.5 h-3.5 text-indigo-600" />
-                          <span>อัปโหลดไฟล์จากเครื่อง</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setFileInputModes((prev) => ({ ...prev, [field.id]: 'link' }))
-                          }
-                          className={`flex-1 py-1.5 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                            fileInputModes[field.id] === 'link'
-                              ? 'bg-white text-indigo-900 shadow-2xs font-bold'
-                              : 'text-slate-600 hover:text-slate-900'
-                          }`}
-                        >
-                          <LinkIcon className="w-3.5 h-3.5 text-indigo-600" />
-                          <span>ใส่ลิงก์ PDF / Drive</span>
-                        </button>
-                      </div>
-
-                      {/* MODE 1: FILE UPLOAD DROPZONE */}
-                      {(fileInputModes[field.id] || 'upload') === 'upload' ? (
-                        <label className="flex flex-col items-center justify-center p-4 sm:p-5 border-2 border-dashed border-indigo-200 hover:border-indigo-400 bg-white hover:bg-indigo-50/30 rounded-2xl cursor-pointer transition-all text-center">
-                          <Upload className="w-6 h-6 text-indigo-600 mb-1" />
-                          <span className="text-xs font-bold text-indigo-900">
-                            {uploadingFieldId === field.id
-                              ? 'กำลังอัปโหลดไฟล์...'
-                              : attachments.some((a) => a.field_id === field.id)
-                              ? 'คลิกเพื่อเปลี่ยนไฟล์ใหม่'
-                              : 'คลิกเพื่อเลือกไฟล์เอกสารแนบ'}
+                      {/* Dedicated PDF Link Input Interface (Zero-Egress Mode) */}
+                      <div className="space-y-2.5 p-4 bg-slate-50/90 rounded-2xl border-2 border-rose-100 shadow-2xs">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                            <LinkIcon className="w-3.5 h-3.5 text-rose-600" />
+                            <span>ลิงก์ไฟล์ PDF / Google Drive ของเอกสารนี้</span>
+                            {field.required && <span className="text-rose-500 font-bold">*</span>}
+                          </label>
+                          <span className="text-[10px] text-rose-700 bg-rose-50 font-bold px-2.5 py-0.5 rounded-full border border-rose-200 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                            บังคับส่งเฉพาะลิงก์ PDF (ประหยัดแบนด์วิดท์)
                           </span>
-                          <span className="text-[10px] text-slate-500 mt-0.5">
-                            รองรับ: {(field.file_config?.allowed_types || []).join(', ') || 'PDF, DOCX'} · สูงสุด{' '}
-                            {field.file_config?.max_size_mb || 25} MB
-                          </span>
-                          <input
-                            type="file"
-                            disabled={uploadingFieldId === field.id}
-                            accept={(field.file_config?.allowed_types || []).join(',')}
-                            onChange={(e) => handleFileChange(field, e)}
-                            className="hidden"
-                          />
-                        </label>
-                      ) : (
-                        /* MODE 2: PASTE PDF LINK / GOOGLE DRIVE */
-                        <div className="space-y-2 p-3.5 bg-slate-50/80 rounded-2xl border border-slate-200">
-                          <div className="flex items-center justify-between gap-2">
-                            <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                              <LinkIcon className="w-3.5 h-3.5 text-rose-600" />
-                              <span>ลิงก์ไฟล์ PDF หรือ Google Drive ของเอกสารนี้</span>
-                              {field.required && <span className="text-rose-500">*</span>}
-                            </label>
-                            <span className="text-[10px] text-slate-500 bg-white px-2 py-0.5 rounded-full border border-slate-200">
-                              วางลิงก์ Cloud / PDF
-                            </span>
-                          </div>
-
-                          <div className="flex gap-2">
-                            <div className="relative flex-1">
-                              <LinkIcon className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                              <input
-                                type="url"
-                                value={val || ''}
-                                onChange={(e) => handleSetPdfLink(field, e.target.value)}
-                                placeholder="https://drive.google.com/file/d/... หรือ ลิงก์ตรงที่ลงท้ายด้วย .pdf"
-                                className="w-full pl-9 pr-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-600"
-                              />
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleTestOpenLink(val)}
-                              disabled={!val}
-                              className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold shrink-0 disabled:opacity-40 transition-colors flex items-center gap-1 shadow-2xs cursor-pointer"
-                              title="ทดสอบเปิดลิงก์ PDF นี้"
-                            >
-                              <span>ทดสอบเปิด</span>
-                              <ExternalLink className="w-3 h-3 text-slate-500" />
-                            </button>
-                          </div>
-
-                          <p className="text-[11px] text-slate-500 leading-relaxed">
-                            💡 แนะนำ: หากใช้ <strong>Google Drive</strong> กรุณาตั้งค่าสิทธิ์การแชร์ไฟล์เป็น &ldquo;ทุกคนที่มีลิงก์สามารถดูได้&rdquo; เพื่อให้กรรมการและแอดมินสามารถเปิดตรวจเอกสารได้ทันที
-                          </p>
                         </div>
-                      )}
+
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <LinkIcon className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                            <input
+                              type="url"
+                              required={field.required}
+                              value={val || ''}
+                              onChange={(e) => handleSetPdfLink(field, e.target.value)}
+                              placeholder="https://drive.google.com/file/d/... หรือ ลิงก์ตรงที่ลงท้ายด้วย .pdf"
+                              className="w-full pl-9 pr-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500/30 focus:border-rose-600 shadow-2xs transition-all"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleTestOpenLink(val)}
+                            disabled={!val}
+                            className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold shrink-0 disabled:opacity-40 transition-colors flex items-center gap-1 shadow-2xs cursor-pointer"
+                            title="ทดสอบเปิดลิงก์ PDF นี้ในแท็บใหม่"
+                          >
+                            <span>ทดสอบเปิด</span>
+                            <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
+                          </button>
+                        </div>
+
+                        {val && (
+                          <div className="flex items-center gap-1.5 text-[11px] text-emerald-700 font-medium bg-emerald-50/80 px-2.5 py-1 rounded-lg border border-emerald-200">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span className="truncate">พร้อมส่ง: {val}</span>
+                          </div>
+                        )}
+
+                        <p className="text-[11px] text-slate-500 leading-relaxed">
+                          💡 <strong>คำแนะนำ:</strong> กรุณาอัปโหลดไฟล์ PDF ไว้บน <strong>Google Drive / OneDrive</strong> แล้วคัดลอกลิงก์มาวาง โดยตั้งค่าสิทธิ์แชร์เป็น <em>&ldquo;ทุกคนที่มีลิงก์สามารถดูได้&rdquo;</em> เพื่อให้ผู้ตรวจเปิดอ่านได้ทันทีและช่วยประหยัดทรัพยากรเซิร์ฟเวอร์
+                        </p>
+                      </div>
                     </div>
                   )}
                 </div>

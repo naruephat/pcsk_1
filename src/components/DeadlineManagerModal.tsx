@@ -981,7 +981,19 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                                   { id: `fld_${Date.now()}_1`, type: 'user_profile', label: 'ครูผู้สอน', required: true, profile_key: 'name', order: 1 },
                                   { id: `fld_${Date.now()}_2`, type: 'text', label: 'ชื่อเรื่อง / รายวิชา', required: true, order: 2 },
                                   { id: `fld_${Date.now()}_3`, type: 'select', label: 'รูปแบบ / ประเภท', required: true, options: ['ตัวเลือกที่ 1', 'ตัวเลือกที่ 2', 'ตัวเลือกที่ 3'], order: 3 },
-                                  { id: `fld_${Date.now()}_4`, type: 'file', label: 'ไฟล์เอกสารแนบ', required: true, order: 4 },
+                                  {
+                                    id: `fld_${Date.now()}_4`,
+                                    type: 'file',
+                                    label: 'ลิงก์ไฟล์เอกสาร / PDF (Google Drive)',
+                                    required: true,
+                                    order: 4,
+                                    file_config: {
+                                      submission_mode: 'link_only',
+                                      require_link_only: true,
+                                      allowed_types: ['.pdf'],
+                                      max_size_mb: 25,
+                                    },
+                                  },
                                 ],
                               });
                             }
@@ -1169,9 +1181,15 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                                       {
                                         id: `fld_${Date.now()}_4`,
                                         type: 'file',
-                                        label: 'ไฟล์เอกสารแนบ',
+                                        label: 'ลิงก์ไฟล์เอกสาร / PDF (Google Drive)',
                                         required: true,
                                         order: 4,
+                                        file_config: {
+                                          submission_mode: 'link_only',
+                                          require_link_only: true,
+                                          allowed_types: ['.pdf'],
+                                          max_size_mb: 25,
+                                        },
                                       },
                                     ],
                                   });

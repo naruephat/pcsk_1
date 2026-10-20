@@ -134,12 +134,15 @@ export const DEFAULT_DEADLINE_CONFIGS: PlanTypeDeadlineConfig[] = [
       {
         id: 'fld_attachment',
         type: 'file',
-        label: 'ไฟล์เอกสาร',
-        description: 'อัปโหลดไฟล์เอกสารโครงร่างวิจัย (PDF, Word DOCX หรือ DOC ขนาดไม่เกิน 25MB)',
+        label: 'ลิงก์ไฟล์เอกสาร / แผนการสอน (PDF หรือ Google Drive)',
+        description: 'ระบุลิงก์ไฟล์ PDF เช่น Google Drive, OneDrive หรือลิงก์ตรง .pdf (ตั้งค่าแชร์ให้ทุกคนที่มีลิงก์ดูได้ เพื่อประหยัดโควต้าเซิร์ฟเวอร์)',
         required: true,
         file_config: {
+          submission_mode: 'link_only',
+          require_link_only: true,
+          allow_link: true,
           max_files: 1,
-          allowed_types: ['.pdf', '.docx', '.doc'],
+          allowed_types: ['.pdf'],
           max_size_mb: 25,
         },
         order: 9,
