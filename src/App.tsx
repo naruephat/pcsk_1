@@ -19,6 +19,9 @@ import {
   subscribeToDatabaseChanges,
   fetchSystemSetting,
   saveSystemSetting,
+  fetchAssignmentSubmissionsList,
+  getLocalPlans,
+  saveLocalPlans,
 } from './services/supabaseClient';
 import {
   getSavedDeadlineConfigs,
@@ -51,6 +54,7 @@ import { ResubmitPlanModal } from './components/ResubmitPlanModal';
 import { LoadingScreen } from './components/LoadingScreen';
 import { DeadlineManagerModal } from './components/DeadlineManagerModal';
 import { TeacherAssignmentNotification } from './components/TeacherAssignmentNotification';
+import { DynamicSubmitModal } from './components/DynamicSubmitModal';
 import { Sidebar } from './components/Sidebar';
 import { LessonPlanTableRow } from './components/LessonPlanTableRow';
 import { DeadlineCountdownBanner } from './components/DeadlineCountdownBanner';
@@ -112,6 +116,8 @@ export default function App() {
   // Modals
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [submitModalInitialType, setSubmitModalInitialType] = useState<string | undefined>(undefined);
+  const [selectedDynamicConfig, setSelectedDynamicConfig] = useState<PlanTypeDeadlineConfig | null>(null);
+  const [isDynamicSubmitModalOpen, setIsDynamicSubmitModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
@@ -140,11 +146,12 @@ export default function App() {
   const syncWithDatabase = async (silent: boolean = true) => {
     setIsSyncing(true);
     try {
-      const [teachersRes, plansRes, dlSettingsRes, statusSettingsRes] = await Promise.all([
+      const [teachersRes, plansRes, dlSettingsRes, statusSettingsRes, submissionsRes] = await Promise.all([
         fetchTeachers(),
         fetchPlans(),
         fetchSystemSetting<PlanTypeDeadlineConfig[]>('deadline_configs', getSavedDeadlineConfigs()),
         fetchSystemSetting<PlanStatusConfig[]>('status_configs', getSavedStatusConfigs()),
+        fetchAssignmentSubmissionsList(),
       ]);
       setTeachers(teachersRes.data);
       setIsSupabaseConnected(teachersRes.isSupabase || plansRes.isSupabase);
@@ -166,7 +173,62 @@ export default function App() {
         saveSystemSetting('status_configs', DEFAULT_STATUS_CONFIGS);
       }
 
-      const evaluated = plansRes.data.map((p) => {
+      // CRITICAL FIX: Merge remote plans with dynamic submissions and local storage
+      // so teacher submitted work NEVER disappears even if Supabase SQL table has FK or sync delays!
+      const remotePlans = plansRes.data || [];
+      const remotePlanIds = new Set(remotePlans.map((p) => p.id));
+
+      // 1. Convert dynamic submissions that might not yet be in lesson_plans table
+      const convertedDynamicPlans: LessonPlan[] = (submissionsRes || [])
+        .filter((sub) => !remotePlanIds.has(sub.id))
+        .map((sub) => {
+          const firstAtt = sub.attachments?.[0];
+          const dlConfig = effectiveDl.find((d) => d.id === sub.assignment_id || d.name === sub.assignment_name);
+          const fields = dlConfig?.fields || [];
+          const answers = sub.answers || {};
+
+          const titleCandidate =
+            answers['fld_title'] ||
+            answers['fld_research_topic'] ||
+            answers['fld_topic'] ||
+            answers[fields.find((f) => f.type === 'textarea')?.id || ''] ||
+            answers[fields.find((f) => f.type === 'text')?.id || ''] ||
+            sub.assignment_name;
+
+          return {
+            id: sub.id,
+            teacher_id: sub.teacher_id,
+            teacher_name: sub.teacher_name,
+            teacher_photo: '',
+            learning_area: sub.learning_area || '',
+            subject_code: String(answers['fld_subject_code'] || 'ภาระงาน'),
+            subject_name: String(answers['fld_subject_name'] || sub.assignment_name),
+            grade_level: String(answers['fld_grade_level'] || 'มัธยมศึกษา'),
+            semester: dlConfig?.semester || '1',
+            academic_year: dlConfig?.academic_year || '2567',
+            plan_title: String(titleCandidate).substring(0, 120),
+            plan_type: sub.assignment_name,
+            total_hours: Number(answers['fld_hours']) || 1,
+            file_url: firstAtt?.file_url || answers[fields.find((f) => f.type === 'file')?.id || ''] || '#',
+            file_name: firstAtt?.file_name || 'เอกสารภาระงาน',
+            submitted_at: sub.submitted_at || new Date().toISOString(),
+            status: sub.status || 'submitted',
+            is_late: sub.is_late ?? false,
+            submission_delay_text: sub.submission_delay_text,
+            evaluation_type: dlConfig?.evaluation_type || 'approval_only',
+            notes: JSON.stringify(answers),
+          };
+        });
+
+      // 2. Also keep local storage plans that haven't been pushed or were saved recently
+      const localPlans = getLocalPlans();
+      const knownIds = new Set([...remotePlans.map((p) => p.id), ...convertedDynamicPlans.map((p) => p.id)]);
+      const missingLocals = localPlans.filter((lp) => !knownIds.has(lp.id));
+
+      const mergedPlans = [...remotePlans, ...convertedDynamicPlans, ...missingLocals];
+      saveLocalPlans(mergedPlans);
+
+      const evaluated = mergedPlans.map((p) => {
         if (p.is_late === undefined) {
           const tl = checkSubmissionTimeliness(p.plan_type, p.submitted_at, effectiveDl);
           return {
@@ -569,14 +631,31 @@ export default function App() {
   const isAdmin = isTeacherAdmin(currentTeacher);
 
   const handleOpenSubmitForType = (planType: string) => {
-    setSubmitModalInitialType(planType);
-    setIsSubmitModalOpen(true);
+    const targetConfig = (deadlineConfigs || []).find(
+      (c) => c.name.trim().toLowerCase() === planType.trim().toLowerCase()
+    );
+    if (targetConfig && targetConfig.fields && targetConfig.fields.length > 0) {
+      setSelectedDynamicConfig(targetConfig);
+      setIsDynamicSubmitModalOpen(true);
+    } else {
+      setSubmitModalInitialType(planType);
+      setIsSubmitModalOpen(true);
+    }
   };
 
   const pendingAssignmentsCount = useMemo(() => {
     if (!currentTeacher || isAdmin) return 0;
     const activeConfigs = (deadlineConfigs || []).filter((c) => c.is_active !== false);
-    const myPlans = plans.filter((p) => p.teacher_id === currentTeacher.Teacher_ID);
+    const normalize = (val?: string) => String(val || '').trim().toLowerCase();
+    const currentTeacherId = normalize(currentTeacher.Teacher_ID);
+    const currentTeacherName = normalize(currentTeacher.Name);
+
+    const myPlans = plans.filter((p) => {
+      const pId = normalize(p.teacher_id);
+      const pName = normalize(p.teacher_name);
+      return (currentTeacherId && pId === currentTeacherId) || (currentTeacherName && pName === currentTeacherName);
+    });
+
     let pending = 0;
     for (const cfg of activeConfigs) {
       const submitted = myPlans.some(
@@ -588,7 +667,8 @@ export default function App() {
   }, [currentTeacher, isAdmin, deadlineConfigs, plans]);
 
   const handleScrollToAssignments = (filter?: 'pending' | 'all' | React.MouseEvent) => {
-    const filterType = filter === 'all' ? 'all' : 'pending';
+    // Default to 'all' so teacher's submitted assignments don't disappear when clicking notification
+    const filterType = filter === 'pending' ? 'pending' : 'all';
     window.dispatchEvent(new CustomEvent('filter-assignments', { detail: { filter: filterType } }));
     const el = document.getElementById('assigned-documents-section');
     if (el) {
@@ -598,12 +678,24 @@ export default function App() {
 
   // Filtered plans logic
   const filteredPlans = plans.filter((plan) => {
-    // CRITICAL: Regular teachers can ONLY see their own plans! Cannot see other IDs!
+    // CRITICAL: Regular teachers can ONLY see their own plans! Normalized comparison prevents case/whitespace bugs
     if (!isAdmin) {
-      if (plan.teacher_id !== currentTeacher?.Teacher_ID) {
+      const normalize = (val?: string) => String(val || '').trim().toLowerCase();
+      const planTeacherId = normalize(plan.teacher_id || (plan as any).Teacher_ID);
+      const currentTeacherId = normalize(currentTeacher?.Teacher_ID || (currentTeacher as any)?.teacher_id);
+      const planTeacherName = normalize(plan.teacher_name || (plan as any).Teacher_Name);
+      const currentTeacherName = normalize(currentTeacher?.Name || (currentTeacher as any)?.name);
+
+      const isOwner =
+        (currentTeacherId && planTeacherId === currentTeacherId) ||
+        (currentTeacherName && planTeacherName === currentTeacherName);
+
+      if (!isOwner) {
         return false;
       }
-      if (viewTab === 'pending_review' && plan.status !== 'submitted') {
+
+      // Waiting for review tab: show all unreviewed plans (both 'submitted' and 'late')
+      if (viewTab === 'pending_review' && (plan.status === 'approved' || plan.status === 'needs_revision')) {
         return false;
       }
       if (viewTab === 'approved' && plan.status !== 'approved') {
@@ -1507,7 +1599,32 @@ export default function App() {
         plans={plans}
         onUpdatePlanStatus={handleQuickChangePlanStatus}
         isSupabaseConnected={isSupabaseConnected}
+        currentTeacher={currentTeacher}
       />
+
+      {/* Dynamic Assignment Submit Modal (when task has custom fields & dropdowns) */}
+      {currentTeacher && selectedDynamicConfig && (
+        <DynamicSubmitModal
+          currentTeacher={currentTeacher}
+          config={selectedDynamicConfig}
+          isOpen={isDynamicSubmitModalOpen}
+          onClose={() => {
+            setIsDynamicSubmitModalOpen(false);
+            setSelectedDynamicConfig(null);
+          }}
+          onSubmitted={async (submission, correspondingPlan) => {
+            if (correspondingPlan) {
+              setPlans((prev) => [correspondingPlan, ...prev]);
+            }
+            await syncWithDatabase(true);
+            setToastNotice({
+              type: 'success',
+              message: `ส่งภาระงาน "${selectedDynamicConfig.name}" เรียบร้อยแล้ว!`,
+              details: 'บันทึกข้อมูลและส่งเข้าระบบ Supabase เรียบร้อยแล้ว',
+            });
+          }}
+        />
+      )}
 
       {/* Edit Plan Modal (Teacher owner or Admin) */}
       {planToEdit && (

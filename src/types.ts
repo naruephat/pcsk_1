@@ -26,6 +26,39 @@ export type PlanType =
 
 export type EvaluationType = 'rubric_score' | 'approval_only';
 
+export type DynamicFieldType =
+  | 'text'
+  | 'textarea'
+  | 'number'
+  | 'date'
+  | 'select'
+  | 'radio'
+  | 'checkbox'
+  | 'file'
+  | 'user_profile';
+
+export type SubmissionMode = 'both' | 'link_only' | 'file_only';
+
+export interface DynamicFormField {
+  id: string; // Unique permanent ID (e.g. 'fld_xxx')
+  type: DynamicFieldType;
+  label: string;
+  description?: string;
+  placeholder?: string;
+  required: boolean;
+  options?: string[]; // for select, radio, checkbox
+  profile_key?: 'name' | 'learning_area' | 'teacher_id' | 'email' | 'position'; // for user_profile
+  file_config?: {
+    max_files?: number;
+    allowed_types?: string[]; // e.g. ['.pdf', '.docx', '.doc', '.png', '.jpg']
+    max_size_mb?: number; // e.g. 25
+    submission_mode?: SubmissionMode; // 'link_only' = บังคับส่งแค่ลิงก์ PDF, 'both' = ทั้งสองแบบ, 'file_only' = ไฟล์จากเครื่องเท่านั้น
+    allow_link?: boolean;
+    require_link_only?: boolean;
+  };
+  order: number;
+}
+
 export interface PlanTypeDeadlineConfig {
   id: string;
   name: string;
@@ -40,6 +73,33 @@ export interface PlanTypeDeadlineConfig {
   is_active: boolean;
   evaluation_type?: EvaluationType; // 'rubric_score' (ให้คะแนนรูบริก) หรือ 'approval_only' (ตรวจแค่อนุมัติ/ไม่อนุมัติ)
   notes?: string;
+  fields?: DynamicFormField[]; // แบบฟอร์มข้อมูลที่กำหนดให้ผู้ส่งกรอก (Dynamic Form Fields)
+  form_version?: number;
+}
+
+export interface AssignmentSubmission {
+  id: string;
+  assignment_id: string;
+  assignment_name: string;
+  teacher_id: string;
+  teacher_name: string;
+  learning_area: string;
+  submitted_at: string;
+  status: 'submitted' | 'approved' | 'needs_revision' | 'late' | string;
+  answers: Record<string, any>; // field_id -> answer value
+  attachments?: Array<{
+    field_id: string;
+    file_name: string;
+    file_url: string;
+    file_size?: string;
+  }>;
+  is_late?: boolean;
+  submission_delay_text?: string;
+  reviewed_by?: string;
+  reviewer_name?: string;
+  reviewed_at?: string;
+  review_comment?: string;
+  admin_notes?: string;
 }
 
 export type StatusColor =

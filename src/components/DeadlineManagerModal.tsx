@@ -4,7 +4,10 @@ import {
   PlanStatusConfig,
   StatusColor,
   LessonPlan,
+  Teacher,
+  DynamicFormField,
 } from '../types';
+import { DynamicFormBuilder } from './DynamicFormBuilder';
 import {
   formatThaiDateTime,
   formatDeadlineRange,
@@ -46,6 +49,7 @@ import {
   HardDrive,
   FileJson,
   Award,
+  List,
 } from 'lucide-react';
 
 interface DeadlineManagerModalProps {
@@ -58,6 +62,7 @@ interface DeadlineManagerModalProps {
   plans: LessonPlan[];
   onUpdatePlanStatus?: (planId: string, newStatus: string, isLate?: boolean, adminNotes?: string) => Promise<void> | void;
   isSupabaseConnected?: boolean;
+  currentTeacher?: Teacher | null;
 }
 
 const COLOR_OPTIONS: { id: StatusColor; name: string; bg: string }[] = [
@@ -81,6 +86,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
   plans,
   onUpdatePlanStatus,
   isSupabaseConnected,
+  currentTeacher,
 }) => {
   const [activeTab, setActiveTab] = useState<'deadlines' | 'statuses' | 'plans'>('deadlines');
 
@@ -100,8 +106,11 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
     is_active: true,
     evaluation_type: 'rubric_score',
     notes: '',
+    fields: [],
   });
   const [isAddingDeadline, setIsAddingDeadline] = useState(false);
+  const [useCustomFormForNew, setUseCustomFormForNew] = useState(false);
+  const [editingFormDeadlineId, setEditingFormDeadlineId] = useState<string | null>(null);
 
   // Statuses state
   const [statuses, setStatuses] = useState<PlanStatusConfig[]>([...statusConfigs]);
@@ -281,10 +290,15 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
       is_active: newDeadline.is_active ?? true,
       evaluation_type: newDeadline.evaluation_type || 'rubric_score',
       notes: newDeadline.notes?.trim() || '',
+      fields:
+        useCustomFormForNew && newDeadline.fields && newDeadline.fields.length > 0
+          ? newDeadline.fields
+          : undefined,
     };
 
     const nextList = [...deadlines, item];
     setIsAddingDeadline(false);
+    setUseCustomFormForNew(false);
     setNewDeadline({
       name: '',
       description: '',
@@ -298,6 +312,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
       is_active: true,
       evaluation_type: 'rubric_score',
       notes: '',
+      fields: [],
     });
     await handleSaveDeadlines(nextList);
   };
@@ -666,17 +681,37 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                 </div>
               )}
 
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-amber-50/70 border border-amber-200/80 rounded-2xl p-4 text-xs">
-                <div className="flex items-start gap-2.5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-3.5 text-xs flex items-start gap-2.5">
                   <Info className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
                   <div>
                     <span className="font-bold text-amber-900">
                       ระบบคำนวณการส่งช้าอัตโนมัติ:
                     </span>
                     <span className="text-amber-800 ml-1">
-                      เมื่อครูผู้สอนส่งแผนการสอนหลัง &quot;วันและเวลาสิ้นสุด (Deadline)&quot; ระบบจะติดแท็ก &quot;ส่งช้า&quot; พร้อมแสดงเวลาที่ล่าช้าโดยอัตโนมัติ และอนุญาตให้แอดมินปรับเปลี่ยนสถานะได้ทุกเมื่อ
+                      เมื่อครูผู้สอนส่งแผนหลัง Deadline ระบบจะติดแท็ก &quot;ส่งช้า&quot; และแสดงระยะเวลาล่าช้าอัตโนมัติ
                     </span>
                   </div>
+                </div>
+
+                <div className="bg-purple-50/70 border border-purple-200/80 rounded-2xl p-3.5 text-xs flex items-start gap-2.5">
+                  <Award className="w-4 h-4 text-purple-600 mt-0.5 shrink-0" />
+                  <div>
+                    <span className="font-bold text-purple-900">
+                      โหมดตรวจประเมินของแต่ละชิ้นงาน:
+                    </span>
+                    <span className="text-purple-800 ml-1">
+                      กำหนดได้ว่าชิ้นงานจะตรวจแบบ <strong>ให้คะแนนรูบริก (Rubric 100)</strong> หรือ <strong>ตรวจแค่อนุมัติ/ไม่อนุมัติ</strong> (คลิกป้ายโหมดตรวจที่การ์ดเพื่อสลับได้ทันที)
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons Header */}
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <Calendar className="w-4 h-4 text-amber-600" />
+                  <span>รายการประเภทเอกสารและกำหนดส่งทั้งหมด ({deadlines.length} ประเภท)</span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <button
@@ -891,9 +926,93 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                         </div>
                       </label>
                     </div>
-                  </div>
+                  {/* Form Mode Selection: Standard vs Custom Dynamic Form */}
+                  <div className="bg-gradient-to-r from-indigo-50/70 to-purple-50/70 p-4 rounded-2xl border-2 border-indigo-200/90 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                        <List className="w-4 h-4 text-indigo-600" />
+                        <span>กำหนดข้อมูลที่ต้องการให้ครูกรอก (Custom Form & Dropdown)</span>
+                      </span>
+                      <span className="text-[11px] text-indigo-700 font-semibold">
+                        {useCustomFormForNew ? `เปิดใช้ฟอร์มกำหนดเอง (${newDeadline.fields?.length || 0} ช่องข้อมูล)` : 'ใช้แบบมาตรฐาน'}
+                      </span>
+                    </div>
 
-                  <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                      <label
+                        className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-2.5 ${
+                          !useCustomFormForNew
+                            ? 'border-indigo-600 bg-white font-bold text-indigo-950 shadow-xs'
+                            : 'border-slate-200 bg-white/70 text-slate-700 hover:bg-white'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="new_form_mode"
+                          checked={!useCustomFormForNew}
+                          onChange={() => setUseCustomFormForNew(false)}
+                          className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <div>
+                          <div className="text-xs font-bold text-slate-900">📄 แบบฟอร์มมาตรฐาน</div>
+                          <div className="text-[11px] text-slate-500 font-normal mt-0.5">
+                            กรอกรหัสวิชา, ชื่อวิชา, ระดับชั้น, และแนบไฟล์แผนการสอน PDF ทั่วไป
+                          </div>
+                        </div>
+                      </label>
+
+                      <label
+                        className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-2.5 ${
+                          useCustomFormForNew
+                            ? 'border-indigo-600 bg-white font-bold text-indigo-950 shadow-xs'
+                            : 'border-slate-200 bg-white/70 text-slate-700 hover:bg-white'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="new_form_mode"
+                          checked={useCustomFormForNew}
+                          onChange={() => {
+                            setUseCustomFormForNew(true);
+                            if (!newDeadline.fields || newDeadline.fields.length === 0) {
+                              setNewDeadline({
+                                ...newDeadline,
+                                fields: [
+                                  { id: `fld_${Date.now()}_1`, type: 'user_profile', label: 'ครูผู้สอน', required: true, profile_key: 'name', order: 1 },
+                                  { id: `fld_${Date.now()}_2`, type: 'text', label: 'ชื่อเรื่อง / รายวิชา', required: true, order: 2 },
+                                  { id: `fld_${Date.now()}_3`, type: 'select', label: 'รูปแบบ / ประเภท', required: true, options: ['ตัวเลือกที่ 1', 'ตัวเลือกที่ 2', 'ตัวเลือกที่ 3'], order: 3 },
+                                  { id: `fld_${Date.now()}_4`, type: 'file', label: 'ไฟล์เอกสารแนบ', required: true, order: 4 },
+                                ],
+                              });
+                            }
+                          }}
+                          className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <div>
+                          <div className="text-xs font-bold text-indigo-950 flex items-center gap-1">
+                            <span>📋 กำหนดช่องกรอก & Dropdown เอง</span>
+                            <span className="text-[10px] bg-indigo-100 text-indigo-800 px-1.5 py-0.2 rounded font-bold">แอดมินกำหนดเอง</span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 font-normal mt-0.5">
+                            เลือกประเภทช่องกรอกได้ มี Dropdown พร้อมกำหนดตัวเลือก, วันที่, ข้อความยาว, ดึงข้อมูลครูอัตโนมัติ
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+
+                    {useCustomFormForNew && (
+                      <div className="pt-2">
+                        <DynamicFormBuilder
+                          fields={newDeadline.fields || []}
+                          onChange={(updatedFields) =>
+                            setNewDeadline({ ...newDeadline, fields: updatedFields })
+                          }
+                          availableTemplates={deadlines}
+                          currentTeacher={currentTeacher}
+                        />
+                      </div>
+                    )}
+                  </div>
                     <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700">
                       <input
                         type="checkbox"
@@ -953,18 +1072,35 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                             <span className="text-xs text-slate-500 font-medium">
                               ภาคเรียนที่ {dl.semester}/{dl.academic_year}
                             </span>
-                            {/* Evaluation Mode Badge */}
-                            {(dl.evaluation_type || 'rubric_score') === 'approval_only' ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                                <CheckCircle2 className="w-3 h-3 text-indigo-600" />
-                                <span>ตรวจแค่อนุมัติ/ไม่อนุมัติ</span>
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                                <Award className="w-3 h-3 text-amber-600" />
-                                <span>ตรวจแบบให้คะแนน (รูบริก 100)</span>
-                              </span>
-                            )}
+                            {/* Evaluation Mode Badge & Instant Toggle */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const current = dl.evaluation_type || 'rubric_score';
+                                const next = current === 'approval_only' ? 'rubric_score' : 'approval_only';
+                                handleUpdateDeadlineItem(dl.id, { evaluation_type: next });
+                              }}
+                              title="คลิกเพื่อสลับรูปแบบการตรวจ (ตรวจให้คะแนน vs ตรวจแค่อนุมัติ) อัตโนมัติทันที"
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border transition-all cursor-pointer hover:shadow-xs active:scale-95 ${
+                                (dl.evaluation_type || 'rubric_score') === 'approval_only'
+                                  ? 'bg-indigo-50 text-indigo-700 border-indigo-300 hover:bg-indigo-100'
+                                  : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                              }`}
+                            >
+                              {(dl.evaluation_type || 'rubric_score') === 'approval_only' ? (
+                                <>
+                                  <CheckCircle2 className="w-3 h-3 text-indigo-600" />
+                                  <span>ตรวจแค่อนุมัติ/ไม่อนุมัติ</span>
+                                  <span className="text-[10px] text-indigo-500 font-normal">↺ สลับ</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Award className="w-3 h-3 text-amber-600" />
+                                  <span>ตรวจแบบให้คะแนน (รูบริก 100)</span>
+                                  <span className="text-[10px] text-amber-600 font-normal">↺ สลับ</span>
+                                </>
+                              )}
+                            </button>
                             {isPastDeadline ? (
                               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
                                 <AlertTriangle className="w-3 h-3 text-rose-600" />
@@ -975,6 +1111,78 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                                 <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                                 <span>เปิดรับส่งตามกำหนด</span>
                               </span>
+                            )}
+
+                            {/* Custom Dynamic Form Badge & Quick Configure */}
+                            {dl.fields && dl.fields.length > 0 ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setEditingFormDeadlineId(
+                                    editingFormDeadlineId === dl.id ? null : dl.id
+                                  )
+                                }
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border transition-all cursor-pointer ${
+                                  editingFormDeadlineId === dl.id
+                                    ? 'bg-purple-700 text-white border-purple-800 shadow-xs'
+                                    : 'bg-purple-50 text-purple-900 border-purple-300 hover:bg-purple-100'
+                                }`}
+                                title="คลิกเพื่อเปิด/ปิด แผงกำหนดข้อมูลที่ต้องการให้ผู้ส่งกรอก และตัวเลือก Dropdown"
+                              >
+                                <List className="w-3 h-3 text-purple-600" />
+                                <span>ฟอร์มกำหนดเอง ({dl.fields.length} ช่อง)</span>
+                                {dl.fields.some((f) => f.type === 'select') && (
+                                  <span className="text-[10px] bg-purple-200 text-purple-950 px-1.5 rounded-full font-bold">
+                                    Dropdown {dl.fields.filter((f) => f.type === 'select').length}
+                                  </span>
+                                )}
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleUpdateDeadlineItem(dl.id, {
+                                    fields: [
+                                      {
+                                        id: `fld_${Date.now()}_1`,
+                                        type: 'user_profile',
+                                        label: 'ครูผู้สอน',
+                                        required: true,
+                                        profile_key: 'name',
+                                        order: 1,
+                                      },
+                                      {
+                                        id: `fld_${Date.now()}_2`,
+                                        type: 'text',
+                                        label: 'ชื่อเรื่อง / รายวิชา',
+                                        required: true,
+                                        order: 2,
+                                      },
+                                      {
+                                        id: `fld_${Date.now()}_3`,
+                                        type: 'select',
+                                        label: 'รูปแบบ / ประเภท',
+                                        required: true,
+                                        options: ['ตัวเลือกที่ 1', 'ตัวเลือกที่ 2', 'ตัวเลือกที่ 3'],
+                                        order: 3,
+                                      },
+                                      {
+                                        id: `fld_${Date.now()}_4`,
+                                        type: 'file',
+                                        label: 'ไฟล์เอกสารแนบ',
+                                        required: true,
+                                        order: 4,
+                                      },
+                                    ],
+                                  });
+                                  setEditingFormDeadlineId(dl.id);
+                                }}
+                                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 transition-colors cursor-pointer"
+                                title="คลิกเพื่อเพิ่มช่องกรอกข้อมูลและตัวเลือก Dropdown ให้งานนี้"
+                              >
+                                <span>📄 แบบมาตรฐาน</span>
+                                <span className="text-[10px] text-indigo-600 font-bold ml-0.5">+ กำหนด Dropdown</span>
+                              </button>
                             )}
                           </div>
 
@@ -1128,6 +1336,23 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                         {/* Action buttons */}
                         <div className="flex sm:flex-col items-center gap-1.5 shrink-0 self-end sm:self-start">
                           <button
+                            type="button"
+                            onClick={() =>
+                              setEditingFormDeadlineId(
+                                editingFormDeadlineId === dl.id ? null : dl.id
+                              )
+                            }
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold border flex items-center gap-1.5 cursor-pointer transition-colors ${
+                              editingFormDeadlineId === dl.id
+                                ? 'bg-purple-700 text-white border-purple-800 shadow-sm'
+                                : 'bg-purple-50 hover:bg-purple-100 text-purple-900 border-purple-300'
+                            }`}
+                            title="กำหนดข้อมูลที่ต้องการให้ครูกรอก เช่น เมนู Dropdown, ข้อความ, วันที่, ไฟล์แนบ"
+                          >
+                            <List className="w-3.5 h-3.5 text-purple-600" />
+                            <span>{editingFormDeadlineId === dl.id ? 'ปิดตั้งฟอร์ม' : 'ฟอร์ม & Dropdown'}</span>
+                          </button>
+                          <button
                             onClick={() => setEditingDeadlineId(isEditing ? null : dl.id)}
                             className={`px-3 py-1.5 rounded-xl text-xs font-semibold border flex items-center gap-1 cursor-pointer transition-colors ${
                               isEditing
@@ -1136,7 +1361,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                             }`}
                           >
                             <Edit2 className="w-3 h-3" />
-                            <span>{isEditing ? 'ปิดการแก้ไข' : 'ปรับวันเวลาส่ง'}</span>
+                            <span>{isEditing ? 'ปิดการแก้ไข' : 'ตั้งค่าวันส่ง & โหมดตรวจ'}</span>
                           </button>
                           {deadlines.length > 1 && (
                             <button
@@ -1150,6 +1375,58 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                           )}
                         </div>
                       </div>
+
+                      {/* Dedicated Dynamic Form Builder Expander for this Deadline */}
+                      {editingFormDeadlineId === dl.id && (
+                        <div className="mt-4 pt-4 border-t-2 border-purple-200/90 bg-purple-50/40 rounded-2xl p-3.5 sm:p-5 space-y-3.5 animate-in fade-in duration-150">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-purple-200/70 pb-3">
+                            <div>
+                              <h5 className="text-sm font-bold text-purple-950 flex items-center gap-2">
+                                <Layers className="w-4 h-4 text-purple-700" />
+                                <span>กำหนดข้อมูลที่ต้องการให้ครูกรอกสำหรับ: &ldquo;{dl.name}&rdquo;</span>
+                              </h5>
+                              <p className="text-xs text-slate-600 mt-0.5">
+                                แอดมินสามารถเพิ่มข้อความ, เมนู Dropdown พร้อมกำหนดตัวเลือก, วันที่, หรือช่องอัปโหลดไฟล์ที่ต้องการให้ครูกรอกได้เอง
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (
+                                    confirm(
+                                      `ต้องการล้างช่องข้อมูลกำหนดเองของ "${dl.name}" แล้วเปลี่ยนกลับเป็นแบบฟอร์มมาตรฐานหรือไม่?`
+                                    )
+                                  ) {
+                                    handleUpdateDeadlineItem(dl.id, { fields: undefined });
+                                    setEditingFormDeadlineId(null);
+                                  }
+                                }}
+                                className="text-xs text-rose-600 hover:text-rose-800 hover:underline px-2 py-1 font-semibold"
+                              >
+                                สลับกลับเป็นแบบมาตรฐาน
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingFormDeadlineId(null)}
+                                className="px-3.5 py-1.5 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer active:scale-95 transition-all flex items-center gap-1"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                                <span>เสร็จสิ้น (บันทึกออโต้)</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          <DynamicFormBuilder
+                            fields={dl.fields || []}
+                            onChange={(updatedFields) =>
+                              handleUpdateDeadlineItem(dl.id, { fields: updatedFields })
+                            }
+                            availableTemplates={deadlines}
+                            currentTeacher={currentTeacher}
+                          />
+                        </div>
+                      )}
                     </div>
                   );
                 })}

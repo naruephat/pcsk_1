@@ -4,10 +4,13 @@ import {
   StatusColor,
   LessonPlan,
   EvaluationType,
+  AssignmentSubmission,
+  DynamicFormField,
 } from '../types';
 
 export const STORAGE_KEY_DEADLINES = 'lp_deadline_configs';
 export const STORAGE_KEY_STATUSES = 'lp_status_configs';
+export const STORAGE_KEY_SUBMISSIONS = 'lp_assignment_submissions';
 
 export const DEFAULT_DEADLINE_CONFIGS: PlanTypeDeadlineConfig[] = [
   {
@@ -39,6 +42,109 @@ export const DEFAULT_DEADLINE_CONFIGS: PlanTypeDeadlineConfig[] = [
     is_active: true,
     evaluation_type: 'rubric_score', // ตรวจแบบให้คะแนนรูบริก 100 คะแนน
     notes: 'ส่งไฟล์ PDF ทางลิงก์ พร้อมบันทึกข้อเสนอแนะและแบบรูบริกส์',
+  },
+  {
+    id: 'type_classroom_research_2569_2',
+    name: 'ประเด็นการวิจัยในชั้นเรียน ภาคเรียนที่ 2 ปีการศึกษา 2569',
+    description: 'แบบเสนอประเด็นและกรอบการวิจัยในชั้นเรียน เพื่อพัฒนาคุณภาพผู้เรียนและแก้ปัญหาในการจัดการเรียนรู้',
+    academic_year: '2569',
+    semester: '2',
+    start_date: '2026-10-01',
+    start_time: '08:30',
+    end_date: '2026-11-30',
+    end_time: '16:30',
+    allow_late: true,
+    is_active: true,
+    evaluation_type: 'approval_only',
+    notes: 'ดึงข้อมูลครูอัตโนมัติ กรอกรายละเอียดประเด็นวิจัย และแนบเอกสารไฟล์ประกอบ',
+    fields: [
+      {
+        id: 'fld_teacher_name',
+        type: 'user_profile',
+        label: 'ครูผู้สอน',
+        description: 'ดึงชื่อและนามสกุลจากบัญชีผู้ใช้โดยอัตโนมัติ (อ่านอย่างเดียว)',
+        required: true,
+        profile_key: 'name',
+        order: 1,
+      },
+      {
+        id: 'fld_learning_area',
+        type: 'user_profile',
+        label: 'กลุ่มสาระการเรียนรู้',
+        description: 'ดึงจากข้อมูลครูเดิมเมื่อมี (อ่านอย่างเดียว)',
+        required: true,
+        profile_key: 'learning_area',
+        order: 2,
+      },
+      {
+        id: 'fld_research_format',
+        type: 'select',
+        label: 'รูปแบบรายงานวิจัย',
+        description: 'เลือกรูปแบบการจัดทำรายงานวิจัยในชั้นเรียน',
+        required: true,
+        options: [
+          'วิจัยในชั้นเรียนแบบหน้าเดียว',
+          'วิจัยในชั้นเรียนแบบกึ่งทางการ',
+          'วิจัยในชั้นเรียนแบบ 5 บท',
+        ],
+        order: 3,
+      },
+      {
+        id: 'fld_subject',
+        type: 'text',
+        label: 'รายวิชา',
+        placeholder: 'เช่น ว31101 ฟิสิกส์ 1 หรือ ค22101 คณิตศาสตร์พื้นฐาน',
+        required: true,
+        order: 4,
+      },
+      {
+        id: 'fld_content_topic',
+        type: 'text',
+        label: 'เนื้อหา / เรื่อง',
+        placeholder: 'เช่น การเคลื่อนที่ในหนึ่งมิติ หรือ วงจรไฟฟ้า',
+        required: true,
+        order: 5,
+      },
+      {
+        id: 'fld_target_students',
+        type: 'text',
+        label: 'นักเรียนกลุ่มเป้าหมาย',
+        placeholder: 'เช่น นักเรียนชั้น ม.4/1 จำนวน 30 คน',
+        required: true,
+        order: 6,
+      },
+      {
+        id: 'fld_research_issue',
+        type: 'textarea',
+        label: 'ประเด็นการวิจัย',
+        description: 'ระบุว่าต้องการแก้ปัญหา ส่งเสริม หรือพัฒนาอะไร ในการจัดการเรียนรู้',
+        placeholder: 'อธิบายปัญหาที่พบในชั้นเรียน หรือจุดที่ต้องการส่งเสริมพัฒนาการเรียนรู้...',
+        required: true,
+        order: 7,
+      },
+      {
+        id: 'fld_methodology',
+        type: 'textarea',
+        label: 'วิธีการดำเนินงาน',
+        description: 'ระบุว่าจะใช้วิธีใดในการแก้ปัญหา ส่งเสริม หรือพัฒนา (เช่น นวัตกรรม เทคนิคการสอน สื่อ)',
+        placeholder: 'อธิบายกระบวนการ ขั้นตอน นวัตกรรม หรือเทคนิคการสอนที่จะนำมาใช้...',
+        required: true,
+        order: 8,
+      },
+      {
+        id: 'fld_attachment',
+        type: 'file',
+        label: 'ไฟล์เอกสาร',
+        description: 'อัปโหลดไฟล์เอกสารโครงร่างวิจัย (PDF, Word DOCX หรือ DOC ขนาดไม่เกิน 25MB)',
+        required: true,
+        file_config: {
+          max_files: 1,
+          allowed_types: ['.pdf', '.docx', '.doc'],
+          max_size_mb: 25,
+        },
+        order: 9,
+      },
+    ],
   },
 ];
 
@@ -99,6 +205,35 @@ export function saveDeadlineConfigs(configs: PlanTypeDeadlineConfig[]): void {
     localStorage.setItem(STORAGE_KEY_DEADLINES, JSON.stringify(configs));
   } catch (e) {
     console.error('Failed to save deadline configs:', e);
+  }
+}
+
+/**
+ * Load saved dynamic assignment submissions from LocalStorage
+ */
+export function getSavedSubmissions(): AssignmentSubmission[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_SUBMISSIONS);
+    if (raw) {
+      const parsed: AssignmentSubmission[] = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.error('Failed to parse submissions:', e);
+  }
+  return [];
+}
+
+/**
+ * Save dynamic assignment submissions to LocalStorage
+ */
+export function saveSubmissions(submissions: AssignmentSubmission[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEY_SUBMISSIONS, JSON.stringify(submissions));
+  } catch (e) {
+    console.error('Failed to save submissions:', e);
   }
 }
 

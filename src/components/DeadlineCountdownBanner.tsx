@@ -49,9 +49,15 @@ export const DeadlineCountdownBanner: React.FC<DeadlineCountdownBannerProps> = (
 
   // Find target deadline to highlight
   const targetInfo = useMemo(() => {
-    if (activeConfigs.length === 0) return null;
+    const normalize = (val?: string) => String(val || '').trim().toLowerCase();
+    const currentId = normalize(currentTeacher.Teacher_ID || (currentTeacher as any).teacher_id);
+    const currentName = normalize(currentTeacher.Name || (currentTeacher as any).name);
 
-    const myPlans = plans.filter((p) => p.teacher_id === currentTeacher.Teacher_ID);
+    const myPlans = plans.filter((p) => {
+      const pId = normalize(p.teacher_id || (p as any).Teacher_ID);
+      const pName = normalize(p.teacher_name || (p as any).Teacher_Name);
+      return (currentId && pId === currentId) || (currentName && pName === currentName);
+    });
 
     // Calculate details for each active config
     const computed = activeConfigs.map((config) => {

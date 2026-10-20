@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Teacher, LessonPlan } from '../types';
+import { Teacher, LessonPlan, AssignmentSubmission } from '../types';
 import { INITIAL_TEACHERS, INITIAL_LESSON_PLANS } from '../data/initialTeachers';
+import { getSavedSubmissions, saveSubmissions } from '../utils/deadlineUtils';
 
 const STORAGE_KEY_CONFIG = 'lp_supabase_config';
 const STORAGE_KEY_TEACHERS = 'lp_local_teachers';
@@ -669,6 +670,202 @@ EXCEPTION
     WHEN undefined_object THEN NULL;
 END $$;
 `;
+
+export const ASSIGNMENT_SUBMISSIONS_TABLE_SQL = `-- รันคำสั่งนี้ใน Supabase SQL Editor เพื่อสร้างตารางบันทึกการส่งงานแบบไดนามิก (Dynamic Form Submissions)
+CREATE TABLE IF NOT EXISTS public.assignment_submissions (
+    "id" VARCHAR(100) PRIMARY KEY,
+    "assignment_id" VARCHAR(100) NOT NULL,
+    "assignment_name" VARCHAR(255) NOT NULL,
+    "teacher_id" VARCHAR(50) NOT NULL,
+    "teacher_name" VARCHAR(255) NOT NULL,
+    "learning_area" VARCHAR(150),
+    "submitted_at" TIMESTAMPTZ DEFAULT NOW(),
+    "status" VARCHAR(50) DEFAULT 'submitted',
+    "answers" JSONB DEFAULT '{}'::jsonb,
+    "attachments" JSONB DEFAULT '[]'::jsonb,
+    "is_late" BOOLEAN DEFAULT false,
+    "submission_delay_text" VARCHAR(255),
+    "reviewed_by" VARCHAR(50),
+    "reviewer_name" VARCHAR(255),
+    "reviewed_at" TIMESTAMPTZ,
+    "review_comment" TEXT,
+    "admin_notes" TEXT,
+    "updated_at" TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.assignment_submissions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all access to assignment_submissions" ON public.assignment_submissions;
+CREATE POLICY "Allow all access to assignment_submissions" ON public.assignment_submissions FOR ALL USING (true) WITH CHECK (true);
+
+DO $$
+BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.assignment_submissions;
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+    WHEN undefined_object THEN NULL;
+END $$;
+`;
+
+export async function saveAssignmentSubmissionRecord(
+  submission: AssignmentSubmission
+): Promise<{ success: boolean; isSupabase: boolean; error?: string }> {
+  // 1. Save to local storage first (instant responsiveness)
+  const localList = getSavedSubmissions();
+  const idx = localList.findIndex((s) => s.id === submission.id);
+  if (idx !== -1) {
+    localList[idx] = submission;
+  } else {
+    localList.unshift(submission);
+  }
+  saveSubmissions(localList);
+
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: true, isSupabase: false };
+  }
+
+  try {
+    const payload = {
+      id: submission.id,
+      assignment_id: submission.assignment_id,
+      assignment_name: submission.assignment_name,
+      teacher_id: submission.teacher_id,
+      teacher_name: submission.teacher_name,
+      learning_area: submission.learning_area || '',
+      submitted_at: submission.submitted_at || new Date().toISOString(),
+      status: submission.status || 'submitted',
+      answers: submission.answers || {},
+      attachments: submission.attachments || [],
+      is_late: submission.is_late ?? false,
+      submission_delay_text: submission.submission_delay_text || null,
+      reviewed_by: submission.reviewed_by || null,
+      reviewer_name: submission.reviewer_name || null,
+      reviewed_at: submission.reviewed_at || null,
+      review_comment: submission.review_comment || null,
+      admin_notes: submission.admin_notes || null,
+    };
+
+    const { error } = await client.from('assignment_submissions').upsert(payload);
+    if (error) {
+      console.warn('assignment_submissions table error, saving to system_settings fallback:', error.message);
+      // Fallback: save array to system_settings so it syncs across all devices!
+      await saveSystemSetting('dynamic_submissions_data', localList);
+      return { success: true, isSupabase: true };
+    }
+    return { success: true, isSupabase: true };
+  } catch (err: any) {
+    console.warn('Exception saving assignment submission, local saved:', err);
+    await saveSystemSetting('dynamic_submissions_data', localList);
+    return { success: true, isSupabase: false, error: err?.message };
+  }
+}
+
+export async function fetchAssignmentSubmissionsList(): Promise<AssignmentSubmission[]> {
+  const local = getSavedSubmissions();
+  const client = getSupabaseClient();
+  if (!client) return local;
+
+  try {
+    const { data, error } = await client
+      .from('assignment_submissions')
+      .select('*')
+      .order('submitted_at', { ascending: false });
+
+    if (!error && Array.isArray(data) && data.length > 0) {
+      saveSubmissions(data as AssignmentSubmission[]);
+      return data as AssignmentSubmission[];
+    }
+
+    // Check system_settings fallback
+    const fallbackRes = await fetchSystemSetting<AssignmentSubmission[]>('dynamic_submissions_data', []);
+    if (fallbackRes.isSupabase && Array.isArray(fallbackRes.data) && fallbackRes.data.length > 0) {
+      saveSubmissions(fallbackRes.data);
+      return fallbackRes.data;
+    }
+  } catch (e) {
+    console.warn('Error fetching submissions from Supabase:', e);
+  }
+  return local;
+}
+
+export async function deleteAssignmentSubmissionRecord(id: string): Promise<boolean> {
+  const local = getSavedSubmissions().filter((s) => s.id !== id);
+  saveSubmissions(local);
+
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      await client.from('assignment_submissions').delete().eq('id', id);
+      await saveSystemSetting('dynamic_submissions_data', local);
+    } catch {
+      // ignore
+    }
+  }
+  return true;
+}
+
+export async function uploadAssignmentAttachmentFile(
+  file: File,
+  teacherId: string,
+  assignmentId: string
+): Promise<{ success: boolean; url: string; fileName: string; fileSize: string; error?: string }> {
+  const fileSizeMb = (file.size / (1024 * 1024)).toFixed(2);
+  const sizeText = Number(fileSizeMb) < 1 ? `${Math.round(file.size / 1024)} KB` : `${fileSizeMb} MB`;
+  const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const path = `assignments/${assignmentId}/${teacherId}_${Date.now()}_${sanitizedName}`;
+
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      // Try 'assignment-files' bucket first, fallback to 'lesson-plans'
+      let uploadRes = await client.storage.from('assignment-files').upload(path, file, {
+        cacheControl: '3600',
+        upsert: true,
+      });
+
+      if (uploadRes.error) {
+        uploadRes = await client.storage.from('lesson-plans').upload(path, file, {
+          cacheControl: '3600',
+          upsert: true,
+        });
+      }
+
+      if (!uploadRes.error) {
+        const { data: pubData } = client.storage.from('lesson-plans').getPublicUrl(path);
+        return {
+          success: true,
+          url: pubData.publicUrl,
+          fileName: file.name,
+          fileSize: sizeText,
+        };
+      }
+    } catch (e) {
+      console.warn('Supabase storage upload error, falling back:', e);
+    }
+  }
+
+  // Fallback: Read file as data URL so teacher can submit without blocking
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      resolve({
+        success: true,
+        url: reader.result as string,
+        fileName: file.name,
+        fileSize: sizeText,
+      });
+    };
+    reader.onerror = () => {
+      resolve({
+        success: true,
+        url: URL.createObjectURL(file),
+        fileName: file.name,
+        fileSize: sizeText,
+      });
+    };
+    reader.readAsDataURL(file);
+  });
+}
 
 export async function checkSystemSettingsTableStatus(): Promise<{
   connected: boolean;

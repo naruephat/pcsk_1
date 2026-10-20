@@ -85,10 +85,16 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
   // Compute status for each assigned document type for the current teacher
   const assignments: AssignmentItem[] = useMemo(() => {
     const now = new Date();
-    const teacherId = currentTeacher.Teacher_ID;
+    const normalize = (val?: string) => String(val || '').trim().toLowerCase();
+    const currentId = normalize(currentTeacher.Teacher_ID || (currentTeacher as any).teacher_id);
+    const currentName = normalize(currentTeacher.Name || (currentTeacher as any).name);
 
-    // Plans belonging to this teacher
-    const myPlans = plans.filter((p) => p.teacher_id === teacherId);
+    // Plans belonging to this teacher (matches by either ID or Name to prevent case/whitespace bugs)
+    const myPlans = plans.filter((p) => {
+      const pId = normalize(p.teacher_id || (p as any).Teacher_ID);
+      const pName = normalize(p.teacher_name || (p as any).Teacher_Name);
+      return (currentId && pId === currentId) || (currentName && pName === currentName);
+    });
 
     return activeConfigs.map((config) => {
       const deadlineDate = constructDateTime(config.end_date, config.end_time || '23:59');
@@ -258,6 +264,25 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
           </div>
         </div>
 
+        {/* Notice when viewing pending filter: explain where submitted work is */}
+        {!isCollapsed && filter === 'pending' && submittedCount > 0 && (
+          <div className="mt-3 p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-between gap-2 text-xs text-emerald-300">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>
+                ท่านส่งงานแล้ว <strong>{submittedCount} รายการ</strong> (ระบบซ่อนงานที่ส่งแล้วในหน้านี้ไว้)
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFilter('all')}
+              className="text-emerald-300 hover:text-white underline font-bold cursor-pointer text-[11px] shrink-0"
+            >
+              คลิกเพื่อดูงานทั้งหมด
+            </button>
+          </div>
+        )}
+
         {/* Warning strip if urgent or overdue */}
         {!isCollapsed && overdueUnsubmittedCount > 0 && (
           <div className="mt-3.5 p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-between gap-3 text-xs text-rose-200">
@@ -408,6 +433,10 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
                     {/* Metadata line (Zero-Pill discipline: unboxed text with · separators) */}
                     <div className="flex items-center gap-2 text-xs text-slate-500 mb-2.5 flex-wrap">
                       <span>ภาคเรียนที่ {config.semester}/{config.academic_year}</span>
+                      <span aria-hidden="true">·</span>
+                      <span className={config.evaluation_type === 'approval_only' ? 'text-indigo-600 font-medium' : 'text-amber-700 font-medium'}>
+                        {config.evaluation_type === 'approval_only' ? '✅ ตรวจแค่อนุมัติ/ไม่อนุมัติ' : '🏆 ตรวจแบบให้คะแนน (รูบริก)'}
+                      </span>
                       {config.allow_late && (
                         <>
                           <span aria-hidden="true">·</span>
